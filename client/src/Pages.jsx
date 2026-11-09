@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callApi } from './api';
+import { sfx } from './audio';
 import { Coin, Sand, Dot } from './Parts';
 import { Panel, Title, Btn } from './Ui';
 
@@ -12,7 +13,7 @@ export function Mails({ user, call, onChange }) {
   const reload = useCallback(async () => { try { setData(await callApi(user, '/mails')); setError(''); } catch (e) { setError(e.message); } }, [user]);
   useEffect(() => { reload(); }, [reload]);
 
-  const claim = async (m) => { try { await call(`/mails/${m.id}/claim`, { method: 'POST' }); await reload(); onChange(); } catch (e) { setMsg(e.message); } };
+  const claim = async (m) => { try { await call(`/mails/${m.id}/claim`, { method: 'POST' }); sfx('coin'); await reload(); onChange(); } catch (e) { setMsg(e.message); } };
   const read = async (m) => { if (!m.read) { await callApi(user, `/mails/${m.id}/read`, { method: 'POST' }).catch(() => {}); reload(); onChange(); } };
 
   return (

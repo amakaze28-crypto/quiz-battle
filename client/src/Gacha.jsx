@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
+import { sfx } from './audio';
 import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
 import Hud from './Hud';
 import AccountMenu from './AccountMenu';
@@ -103,7 +104,12 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
   const pull = async (count) => {
     if (busy) return;
     setBusy(true); setMsg('');
-    try { setResult(await call('/gacha/pull', { method: 'POST', body: { count } })); } catch (e) { setMsg(e.message); }
+    try {
+      const r = await call('/gacha/pull', { method: 'POST', body: { count } });
+      const best = r.results.reduce((m, x) => Math.max(m, RARITIES.indexOf(x.kind === 'item' ? x.item.rarity : x.rarity)), 0);
+      sfx('gacha'); setTimeout(() => sfx(best >= 3 ? 'rare' : 'ok'), 650);
+      setResult(r);
+    } catch (e) { setMsg(e.message); }
     setBusy(false);
   };
 

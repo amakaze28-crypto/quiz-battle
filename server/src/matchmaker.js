@@ -1,4 +1,7 @@
 import { cfg } from './config.js';
+import { settings } from './settings.js';
+import { makeBot } from './bots.js';
+import { MASTER_START } from './rank.js';
 
 export class Matchmaker {
   constructor(onMatch) {
@@ -11,7 +14,10 @@ export class Matchmaker {
 
   join(entry) {
     this.leave(entry.uid);
-    this.queue.push({ ...entry, joinedAt: Date.now() });
+    const b = settings().bots;
+    // botが加わるまでの待ち時間は人によってばらつかせる
+    const botAfterMs = (b.waitMin + Math.random() * (b.waitMax - b.waitMin)) * 1000;
+    this.queue.push({ ...entry, joinedAt: Date.now(), botAfterMs });
     this.tick();
   }
 
@@ -38,8 +44,28 @@ export class Matchmaker {
         }
       }
     }
+    this.fillWithBots(now);
     for (const e of this.queue) {
       e.socket.emit('queue:status', { waitSec: Math.floor((now - e.joinedAt) / 1000), size: this.queue.length });
+    }
+  }
+
+  // ダイヤ帯までは、待ち時間が長いとbotが加わって対戦が始まる
+  fillWithBots(now) {
+    if (!settings().bots.enabled) return;
+    for (const e of [...this.queue]) {
+      if (!this.queue.includes(e) || e.rating >= MASTER_START || now - e.joinedAt < e.botAfterMs) continue;
+      // 近いレートで待っている人（マスター未満）がいれば一緒に入れる
+      const mates = this.queue.filter((o) => o !== e && o.rating < MASTER_START && Math.abs(o.rating - e.rating) <= 400).slice(0, cfg.matchSize - 1);
+      const group = [e, ...mates];
+      const ids = new Set(group.map((x) => x.uid));
+      this.queue = this.queue.filter((x) => !ids.has(x.uid));
+      const used = new Set();
+      (async () => {
+        const entries = [...group];
+        while (entries.length < cfg.matchSize) entries.push(await makeBot(e, used));
+        this.onMatch(entries);
+      })().catch((err) => { console.error('[bot] 作成失敗', err); group.forEach((x) => this.queue.push(x)); });
     }
   }
 }

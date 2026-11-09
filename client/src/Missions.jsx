@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
 import { Stage, Box, BackHome, NavHot, NavDots, fs } from './Stage';
@@ -18,7 +19,7 @@ export default function Missions({ user, call, go, summary, refresh }) {
   useEffect(() => { callApi(user, '/missions').then((d) => setList(d.missions)).catch((e) => setMsg(e.message)); }, [user]);
 
   const claim = async (m) => {
-    try { const r = await call(`/missions/${m.key}/claim`, { method: 'POST' }); setList(r.missions); refresh(); } catch (e) { setMsg(e.message); }
+    try { const r = await call(`/missions/${m.key}/claim`, { method: 'POST' }); setList(r.missions); refresh(); sfx('coin'); } catch (e) { setMsg(e.message); }
   };
 
   return (

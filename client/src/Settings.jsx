@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Coin } from './Parts';
 import { Panel, Title, Btn } from './Ui';
+import AudioPanel from './AudioPanel';
 
 export default function Settings({ profile, call }) {
   const [name, setName] = useState(profile?.displayName || '');
@@ -24,6 +25,10 @@ export default function Settings({ profile, call }) {
         </p>
         <Btn variant="blue" onClick={save}>変更する</Btn>
         {msg && <p className={`mt-2 text-sm ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</p>}
+      </Panel>
+      <Panel className="p-3 mt-3">
+        <h2 className="ui-title text-lg mb-1">サウンド</h2>
+        <AudioPanel />
       </Panel>
     </div>
   );

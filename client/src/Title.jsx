@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Stage, Box, Hot, fs } from './Stage';
+import AudioPanel from './AudioPanel';
 
 // タイトル画面。どこをタップしても開始（未ログインならGoogleログイン）
 export default function Title({ user, onStart, onLogin, onLogout, busy, error }) {
@@ -38,6 +39,7 @@ export default function Title({ user, onStart, onLogin, onLogout, busy, error })
             ) : (
               <>
                 <h2 className="font-bold text-lg mb-2">設定</h2>
+                <AudioPanel />
                 {user ? (
                   <p className="text-sm text-slate-300 mb-4">ゲームを開始すると、右上のアイコンメニューからプロフィール・設定を開けます。</p>
                 ) : (

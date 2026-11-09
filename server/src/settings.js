@@ -8,6 +8,7 @@ const DEFAULTS = {
   missionRewards: { login: 50, play: 100, win: 150 }, // ミッション報酬コイン
   renameCost: 100,                                      // 2回目以降の改名コスト(コイン)
   secondaryChance: 0.05,                                // Secondaryシステム(得点2倍)の発動確率
+  bots: { enabled: true, waitMin: 5, waitMax: 12 },     // botマッチ（ダイヤ帯まで）。待ち時間が waitMin〜waitMax 秒を超えるとbotが加わる
   gacha: {
     cost: 100,                                          // 1回あたりのコイン
     typeWeights: { item: 70, sand: 30 },                // アイテムが出る / 砂が出る
@@ -37,12 +38,20 @@ function mergeGacha(src = {}) {
   };
 }
 
+function mergeBots(src = {}) {
+  const d = DEFAULTS.bots;
+  const waitMin = num(src.waitMin, 0, 600, d.waitMin);
+  const waitMax = Math.max(waitMin, num(src.waitMax, 0, 600, d.waitMax));
+  return { enabled: src.enabled === undefined ? d.enabled : !!src.enabled, waitMin, waitMax };
+}
+
 export async function loadSettings() {
   const d = (await store.colGet('settings', 'main')) || {};
   current = {
     missionRewards: { ...DEFAULTS.missionRewards, ...(d.missionRewards || {}) },
     renameCost: d.renameCost ?? DEFAULTS.renameCost,
     secondaryChance: d.secondaryChance ?? DEFAULTS.secondaryChance,
+    bots: mergeBots(d.bots),
     gacha: mergeGacha(d.gacha),
   };
   return current;
@@ -58,6 +67,7 @@ export async function saveSettings(p) {
     },
     renameCost: num(p.renameCost, 0, 100000, current.renameCost),
     secondaryChance: Math.min(1, Math.max(0, Number.isFinite(Number(p.secondaryChance)) ? Number(p.secondaryChance) : current.secondaryChance)),
+    bots: mergeBots({ ...current.bots, ...(p.bots || {}) }),
     gacha: mergeGacha({ ...current.gacha, ...(p.gacha || {}) }),
   };
   await store.colSet('settings', 'main', next);

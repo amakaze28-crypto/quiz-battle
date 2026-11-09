@@ -20,6 +20,8 @@ import Title from './Title';
 import RankBadge from './RankBadge';
 import { BgLayer, Panel, Btn, Loading } from './Ui';
 import { Avatar } from './Parts';
+import { sfx } from './audio';
+import { useBgm } from './useAudio';
 
 export function Center({ children }) {
   return (
@@ -48,6 +50,21 @@ function Authed({ user }) {
   }, [user, g.setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const logout = () => signOut(auth);
+
+  // BGM: 対戦中は対戦曲、それ以外はホーム曲
+  useBgm(['queue', 'matched', 'playing'].includes(g.phase) ? 'battle' : 'home');
+
+  // 効果音
+  const qIndex = g.q?.index;
+  const mineKey = g.q?.mine ? (g.q.mine.secondary ? 's' : g.q.mine.correct ? 'c' : 'w') : null;
+  useEffect(() => { if (g.phase === 'matched') sfx('match'); }, [g.phase]);
+  useEffect(() => { if (g.phase === 'playing' && qIndex !== undefined) sfx('question'); }, [qIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (mineKey) sfx(mineKey === 's' ? 'secondary' : mineKey === 'c' ? 'correct' : 'wrong'); }, [mineKey, qIndex]);
+  useEffect(() => {
+    if (g.phase !== 'result' || !g.result) return;
+    const me = g.result.results.find((r) => r.uid === g.profile?.uid);
+    sfx(me && me.delta > 0 ? 'win' : 'lose');
+  }, [g.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (g.conn === 'banned') {
     return (
@@ -123,6 +140,7 @@ export default function App() {
     if (user || (await login())) setStarted(true);
   };
 
+  useBgm(started && user ? null : 'title');
   if (user === undefined) return <Loading />;
   if (!started || !user) return <Title user={user} onStart={start} onLogin={async () => { if (await login()) setStarted(true); }} onLogout={() => signOut(auth)} busy={busy} error={error} />;
   return <Authed user={user} />;

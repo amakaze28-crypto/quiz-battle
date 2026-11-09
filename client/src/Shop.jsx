@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import { useCallback, useEffect, useState } from 'react';
 import { callApi } from './api';
 import { Stage, Box, BackHome, NavHot, NavDots, fs } from './Stage';
@@ -18,7 +19,7 @@ export default function Shop({ user, profile, call, go, summary }) {
   useEffect(() => { load(); }, [load, profile?.sand]);
 
   const act = async (fn) => { setMsg(''); try { await fn(); await load(); } catch (e) { setMsg(e.message); } };
-  const buy = (i) => { if (window.confirm(`「${i.name}」を 魔法の砂 ${i.price} で購入しますか？`)) act(() => call('/shop/buy', { method: 'POST', body: { itemId: i.id } })); };
+  const buy = (i) => { if (window.confirm(`「${i.name}」を 魔法の砂 ${i.price} で購入しますか？`)) act(async () => { const r = await call('/shop/buy', { method: 'POST', body: { itemId: i.id } }); sfx('coin'); return r; }); };
   const equip = (slot, id) => act(() => call('/equip', { method: 'POST', body: { slot, itemId: id } }));
 
   const items = (data?.items || []).filter((i) => i.type === tab);

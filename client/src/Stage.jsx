@@ -8,7 +8,7 @@ export const fs = (px) => `${px / 10.24}cqw`;
 
 export function Stage({ bg, children }) {
   return (
-    <div className="min-h-screen flex items-end justify-center">
+    <div className="fixed inset-0 overflow-hidden flex items-end justify-center overscroll-none touch-manipulation">
       <BgLayer dim />
       <div className="relative overflow-hidden select-none shadow-[0_0_40px_rgba(0,0,0,.6)]"
         style={{ width: 'min(100vw, calc(100dvh * 2 / 3))', aspectRatio: '2 / 3', containerType: 'inline-size' }}>

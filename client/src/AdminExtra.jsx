@@ -227,6 +227,14 @@ export function SettingsAdmin({ user }) {
       </div>
 
       <div className={card}>
+        <h2 className="font-bold mb-1">bot（ダイヤ帯まで）</h2>
+        <Field label="botとのマッチングを有効にする"><input type="checkbox" checked={s.bots.enabled} onChange={(e) => setS({ ...s, bots: { ...s.bots, enabled: e.target.checked } })} /></Field>
+        <Field label="botが加わるまでの待ち時間 最短(秒)"><Num value={s.bots.waitMin} onChange={(v) => setS({ ...s, bots: { ...s.bots, waitMin: v } })} /></Field>
+        <Field label="botが加わるまでの待ち時間 最長(秒)"><Num value={s.bots.waitMax} onChange={(v) => setS({ ...s, bots: { ...s.bots, waitMax: v } })} /></Field>
+        <p className="text-xs text-slate-400 mt-1">botの正答率・解答秒数は、同じランク帯のプレイヤーの平均（秒数は −1〜＋5秒）から自動で決まります。マスター以上には出ません。</p>
+      </div>
+
+      <div className={card}>
         <h2 className="font-bold mb-1">ガチャ</h2>
         <Field label="1回あたりのコイン"><Num value={g.cost} onChange={(v) => setG({ cost: v })} /></Field>
         <p className="text-xs text-slate-400 mt-2">何が出るか（比率。合計が100でなくても按分されます）</p>
