@@ -1,9 +1,33 @@
 @import "tailwindcss";
 
-html, body { background: #0e1013; color: #fff; }
+html { background: #0e1013; }
+body { background: transparent; color: #fff; }
 
 @keyframes pop { from { opacity: 0; transform: scale(.55) rotate(-5deg); } 60% { transform: scale(1.06); } to { opacity: 1; transform: scale(1) rotate(0); } }
 @keyframes glow { 0%,100% { box-shadow: 0 0 10px var(--c); } 50% { box-shadow: 0 0 26px var(--c), 0 0 6px var(--c) inset; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .pop-in { animation: pop .5s cubic-bezier(.2,.9,.3,1.2) both; }
 .glow-card { animation: pop .5s cubic-bezier(.2,.9,.3,1.2) both, glow 1.6s ease-in-out .5s infinite; }
+
+/* ---- 共通UI（背景・枠・ボタン。画像から切り抜いたパーツ） ---- */
+.ui-bgfix { position: fixed; inset: 0; z-index: -1; background: #0b1a38 url(/ui/bg.jpg) center / cover no-repeat; }
+.ui-bgfix::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(6,16,40,.28), rgba(6,16,40,.5)); }
+.ui-bgfix.dim::after { background: rgba(6,16,40,.62); }
+.ui-text { text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+
+.ui-panel { border: 20px solid transparent; border-image: url(/ui/panel.png) 48 fill / 20px stretch; background: rgba(8,22,50,.78) padding-box; padding: 2px 6px; }
+.ui-plate { border: 12px solid transparent; border-image: url(/ui/plate.png) 28 fill / 12px stretch; background: rgba(10,26,58,.8) padding-box; }
+
+.ui-btn { border: 12px solid transparent; border-image: url(/ui/btn-blue.png) 26 fill / 12px stretch; min-height: 48px; color: #fff; font-weight: 800; letter-spacing: .04em; text-shadow: 0 1px 2px rgba(0,0,0,.6); display: inline-flex; align-items: center; justify-content: center; padding: 0 14px; transition: filter .15s, transform .1s; cursor: pointer; }
+.ui-btn:active { transform: translateY(1px); filter: brightness(.9); }
+.ui-btn:disabled { filter: grayscale(.8) brightness(.7); cursor: default; }
+.ui-btn.block { display: flex; width: 100%; }
+.ui-btn-gold { background: linear-gradient(#f4dc9a, #c89a3c 55%, #a97a22); color: #1a2440; font-weight: 800; border-radius: 10px; border: 2px solid #f8e7b0; box-shadow: 0 0 0 1px #6b4a12, 0 2px 8px rgba(0,0,0,.5); min-height: 48px; padding: 0 18px; clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px); transition: filter .15s; }
+.ui-btn-gold:active { filter: brightness(.92); }
+.ui-btn-gold:disabled { filter: grayscale(.8) brightness(.7); }
+.ui-btn-red { background: linear-gradient(#e8574f, #a8211c); color: #fff; font-weight: 800; border: 2px solid #ffb4ae; border-radius: 10px; min-height: 48px; padding: 0 18px; box-shadow: 0 0 0 1px #4d0e0b, 0 2px 8px rgba(0,0,0,.5); clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px); }
+.ui-btn-ghost { background: rgba(14,30,64,.85); color: #dbe6ff; font-weight: 700; border: 1px solid rgba(214,178,94,.6); border-radius: 10px; min-height: 48px; padding: 0 18px; }
+.ui-input { width: 100%; background: rgba(8,18,42,.9); color: #fff; border: 1px solid rgba(214,178,94,.55); border-radius: 10px; padding: 10px 12px; outline: none; }
+.ui-input:focus { border-color: #f1d58a; box-shadow: 0 0 0 2px rgba(241,213,138,.25); }
+.ui-title { font-family: "Hiragino Mincho ProN","Yu Mincho",serif; font-weight: 800; letter-spacing: .08em; color: #f6e4b0; text-shadow: 0 1px 3px rgba(0,0,0,.8), 0 0 10px rgba(255,214,120,.25); }
+.ui-spinner { width: 44px; height: 44px; border-radius: 9999px; border: 4px solid rgba(246,228,176,.25); border-top-color: #f6e4b0; animation: spin 1s linear infinite; }

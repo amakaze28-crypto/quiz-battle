@@ -18,10 +18,16 @@ import Friends from './Friends';
 import Gacha from './Gacha';
 import Title from './Title';
 import RankBadge from './RankBadge';
+import { BgLayer, Panel, Btn, Loading } from './Ui';
 import { Avatar } from './Parts';
 
 export function Center({ children }) {
-  return <div className="min-h-screen grid place-items-center bg-[#0e1013] text-white p-6 text-center"><div>{children}</div></div>;
+  return (
+    <div className="min-h-screen grid place-items-center p-6 text-center text-white">
+      <BgLayer />
+      <Panel className="px-5 py-6 w-full max-w-sm">{children}</Panel>
+    </div>
+  );
 }
 
 function Authed({ user }) {
@@ -48,7 +54,7 @@ function Authed({ user }) {
       <Center>
         <p className="text-2xl font-bold text-red-500 mb-2">アカウントが停止されています</p>
         {g.banReason && <p className="text-slate-300 mb-4">理由: {g.banReason}</p>}
-        <button onClick={logout} className="px-5 py-2 rounded-lg bg-slate-700">ログアウト</button>
+        <Btn variant="ghost" onClick={logout}>ログアウト</Btn>
       </Center>
     );
   }
@@ -56,7 +62,7 @@ function Authed({ user }) {
   if (g.phase === 'matched') {
     return (
       <Center>
-        <p className="text-2xl font-bold mb-4">対戦相手が見つかりました！</p>
+        <p className="ui-title text-2xl mb-4">対戦相手が見つかりました！</p>
         <ul className="space-y-2 mb-4">
           {g.match.players.map((p) => (
             <li key={p.uid} className="flex items-center gap-3 justify-center">
@@ -74,7 +80,7 @@ function Authed({ user }) {
   if (g.phase === 'result') return <Result g={g} user={user} />;
 
   if (view === null) {
-    return <Center>読み込み中…{g.conn !== 'online' && <p className="text-sm text-slate-400 mt-2">サーバーに接続中（無料枠は起動に時間がかかることがあります）</p>}</Center>;
+    return <Loading sub={g.conn !== 'online' ? 'サーバーに接続中（無料枠は起動に時間がかかることがあります）' : undefined} />;
   }
 
   const common = { user, go: setView, summary, refresh };
@@ -117,7 +123,7 @@ export default function App() {
     if (user || (await login())) setStarted(true);
   };
 
-  if (user === undefined) return <Center>読み込み中...</Center>;
+  if (user === undefined) return <Loading />;
   if (!started || !user) return <Title user={user} onStart={start} onLogin={async () => { if (await login()) setStarted(true); }} onLogout={() => signOut(auth)} busy={busy} error={error} />;
   return <Authed user={user} />;
 }

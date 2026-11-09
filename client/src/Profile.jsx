@@ -1,5 +1,6 @@
 import RankBadge from './RankBadge';
 import { Avatar, Banner, Coin, Sand } from './Parts';
+import { Panel, Title } from './Ui';
 
 export default function Profile({ profile }) {
   if (!profile) return <p>読み込み中…</p>;
@@ -8,8 +9,8 @@ export default function Profile({ profile }) {
   const rate = profile.games ? Math.round((profile.wins / profile.games) * 100) : 0;
 
   return (
-    <div className="text-center">
-      <h1 className="text-xl font-bold mb-4">プロフィール</h1>
+    <div className="text-center ui-text">
+      <Title>プロフィール</Title>
       {profile.bannerId !== 'none' && <Banner bannerId={profile.bannerId} className="w-full rounded-xl mb-4" style={{ aspectRatio: '4 / 1' }} />}
       <div className="flex justify-center items-end gap-6">
         <RankBadge rank={r} size={150} />
@@ -19,7 +20,7 @@ export default function Profile({ profile }) {
       <p className="text-slate-300">{profile.displayName}</p>
       <p className="mb-4 flex justify-center gap-5"><Coin n={profile.coins} size={20} className="text-amber-300" /><Sand n={profile.sand} size={22} className="text-amber-300" /></p>
 
-      <div className="rounded-2xl bg-[#171a20] p-5 text-left">
+      <Panel className="p-3 text-left">
         {profile.isMaster ? (
           <p className="text-lg font-bold">{profile.mr} MR</p>
         ) : (
@@ -33,11 +34,11 @@ export default function Profile({ profile }) {
             <div key={k}><div className="text-xs text-slate-400">{k}</div><div className="text-lg font-bold">{v}</div></div>
           ))}
         </div>
-      </div>
-      <div className="rounded-2xl bg-[#171a20] p-4 mt-3 text-left">
+      </Panel>
+      <Panel className="p-3 mt-3 text-left">
         <p className="text-xs text-slate-400">フレンドコード</p>
         <p className="text-xl font-mono font-extrabold tracking-widest">{profile.friendCode}</p>
-      </div>
+      </Panel>
     </div>
   );
 }
