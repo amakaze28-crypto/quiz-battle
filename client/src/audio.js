@@ -1,8 +1,9 @@
 // BGM・効果音。ブラウザの自動再生制限のため、最初のタップ以降に再生が始まる。
 // 音源は public/audio/ の同名ファイルを差し替えるだけで変更できる（例: bgm-home.mp3 = ホームのBGM）。
 const KEY = 'quiz.audio';
-const BGM = { title: '/audio/bgm-title.mp3', home: '/audio/bgm-home.mp3', battle: '/audio/bgm-battle.mp3' };
-const SE = ['tap', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha', 'rare', 'win', 'lose', 'tick'];
+const BGM = { title: '/audio/bgm-title.mp3', home: '/audio/bgm-home.mp3', battle1: '/audio/bgm-battle1.mp3', battle2: '/audio/bgm-battle2.mp3', battle3: '/audio/bgm-battle3.mp3' };
+const BATTLE = ['battle1', 'battle2', 'battle3'];
+const SE = ['tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha', 'rare', 'win', 'lose', 'tick'];
 
 const load = () => {
   try { return { bgm: true, se: true, bgmVol: 0.5, seVol: 0.8, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { bgm: true, se: true, bgmVol: 0.5, seVol: 0.8 }; }
@@ -71,7 +72,13 @@ async function apply() {
   } catch { unlocked = false; /* 再生できなければ次のタップで再試行 */ }
 }
 
-export const playBgm = (name) => { want = name; apply(); };
+// 対戦曲は3曲からランダム。対戦の間は同じ曲を流し、対戦から出るたびに選び直す
+let battlePick = null;
+export const playBgm = (name) => {
+  if (name === 'battle') { if (!battlePick) battlePick = BATTLE[Math.floor(Math.random() * BATTLE.length)]; want = battlePick; }
+  else { battlePick = null; want = name; }
+  apply();
+};
 
 export function sfx(name) {
   if (!state.se || !unlocked || !SE.includes(name)) return;
@@ -91,7 +98,8 @@ export function initAudio() {
   document.addEventListener('pointerdown', unlock, { capture: true });
   document.addEventListener('keydown', unlock, { capture: true });
   document.addEventListener('click', (e) => {
-    const b = e.target.closest?.('button, [role=button]');
+    // タップ音は主要ボタン(ui-btn系)と、data-sfx を付けたボタンだけ。タブ・ナビ・解答・閉じるなどは鳴らさない
+    const b = e.target.closest?.('.ui-btn, .ui-btn-gold, .ui-btn-red, [data-sfx]');
     if (b && !b.disabled && !b.dataset.nosfx) sfx('tap');
   }, true);
   document.addEventListener('visibilitychange', () => { hidden = document.hidden; apply(); });

@@ -51,8 +51,8 @@ function Authed({ user }) {
 
   const logout = () => signOut(auth);
 
-  // BGM: 対戦中は対戦曲、それ以外はホーム曲
-  useBgm(['queue', 'matched', 'playing'].includes(g.phase) ? 'battle' : 'home');
+  // BGM: マッチ成立後は対戦曲(3曲からランダム)、それ以外はホーム曲
+  useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : 'home');
 
   // 効果音
   const qIndex = g.q?.index;

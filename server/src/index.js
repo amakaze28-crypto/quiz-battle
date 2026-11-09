@@ -21,6 +21,7 @@ store.initStore();
 await loadSettings();
 await seedIfEmpty();
 await reloadQuestions();
+await missions.reloadDefs();
 startEmperorRefresh();
 
 const app = express();
@@ -82,7 +83,7 @@ io.on('connection', async (socket) => {
   presence.add(uid);
   if (!wasOnline) {
     // ログイン時刻の記録とデイリーミッション「ログインする」の達成
-    await store.updateUser(uid, { lastLoginAt: Date.now(), missions: missions.touchLogin(socket.data.profile) });
+    await store.updateUser(uid, { lastLoginAt: Date.now(), missions: missions.touchLogin(socket.data.profile), mprog: missions.recordEvent(socket.data.profile, { login: 1 }) });
   }
   const current = await store.getUser(uid);
   socket.emit('profile', profilePayload(current, isAdmin));

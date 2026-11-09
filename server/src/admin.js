@@ -4,6 +4,7 @@ import { normalizeQuestion, reloadQuestions } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { saveSettings, settings } from './settings.js';
+import * as missions from './missions.js';
 
 export function mountAdmin(app, { io, matchmaker }) {
   const r = express.Router();
@@ -144,6 +145,26 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.delete('/mails/:id', wrap(async (req, res) => { await store.colDel('mails', req.params.id); res.json({ ok: true }); }));
 
   // ---- 設定（ミッション報酬・改名コスト・Secondary確率） ----
+  // ---- ウィークリー／スペシャルミッション ----
+  r.get('/missions', wrap(async (_req, res) => res.json({ missions: await missions.reloadDefs(), types: missions.TYPES })));
+  r.post('/missions', wrap(async (req, res) => {
+    const n = missions.normalizeDef(req.body || {});
+    if (n.error) return res.status(400).json({ error: n.error });
+    const id = await store.colAdd('missionDefs', n.value);
+    await missions.reloadDefs();
+    res.json({ id });
+  }));
+  r.put('/missions/:id', wrap(async (req, res) => {
+    const cur = await store.colGet('missionDefs', req.params.id);
+    if (!cur) return res.status(404).json({ error: '見つかりません' });
+    const n = missions.normalizeDef({ ...cur, ...(req.body || {}) });
+    if (n.error) return res.status(400).json({ error: n.error });
+    await store.colSet('missionDefs', req.params.id, n.value);
+    await missions.reloadDefs();
+    res.json({ ok: true });
+  }));
+  r.delete('/missions/:id', wrap(async (req, res) => { await store.colDel('missionDefs', req.params.id); await missions.reloadDefs(); res.json({ ok: true }); }));
+
   r.get('/settings', wrap(async (_req, res) => res.json(settings())));
   r.put('/settings', wrap(async (req, res) => res.json(await saveSettings(req.body || {}))));
 

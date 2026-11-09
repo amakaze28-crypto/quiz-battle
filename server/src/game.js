@@ -177,6 +177,7 @@ export class Room {
         next.wins = (fresh.wins || 0) + (won ? 1 : 0);
         next.losses = (fresh.losses || 0) + (p.delta < 0 ? 1 : 0);
         next.missions = missions.recordMatch(fresh, won);
+        next.mprog = missions.recordEvent(fresh, { play: 1, win: won ? 1 : 0, correct: p.stat.correct });
         // bot用の統計(正答率・平均解答秒数)
         next.statQ = (fresh.statQ || 0) + p.stat.q; next.statCorrect = (fresh.statCorrect || 0) + p.stat.correct;
         next.statAns = (fresh.statAns || 0) + p.stat.ans; next.statTime = (fresh.statTime || 0) + p.stat.time;

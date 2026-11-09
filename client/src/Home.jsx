@@ -1,3 +1,4 @@
+import { sfx } from './audio';
 import { useState } from 'react';
 import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
 import AccountMenu from './AccountMenu';
@@ -19,7 +20,7 @@ export default function Home({ g, summary, go, onLogout }) {
           </Box>
         )}
 
-        <Hot x={65} y={850} w={890} h={290} label="ランクマッチ" onClick={() => (online ? g.joinQueue() : null)} />
+        <Hot x={65} y={850} w={890} h={290} label="ランクマッチ" onClick={() => { if (online) { sfx('queue'); g.joinQueue(); } }} />
         {error && conn === 'online' && (
           <Box x={100} y={1150} w={820} h={50} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{error}</Box>
         )}

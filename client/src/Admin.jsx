@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from './api';
 import RankBadge from './RankBadge';
-import { Reports, Delivery, ItemsAdmin, SettingsAdmin } from './AdminExtra';
+import { Reports, Delivery, ItemsAdmin, MissionsAdmin, SettingsAdmin } from './AdminExtra';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
@@ -11,7 +11,7 @@ export default function Admin({ user }) {
   const [unresolved, setUnresolved] = useState(0);
   // メッセージ(通報)の未対応件数をタブに表示
   useEffect(() => { adminApi(user, '/reports').then((d) => setUnresolved(d.unresolved)).catch(() => {}); }, [user]);
-  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['delivery', 'メール'], ['items', 'アイテム'], ['settings', '設定']];
+  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['delivery', 'メール'], ['items', 'アイテム'], ['missions', 'ミッション'], ['settings', '設定']];
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-5">
@@ -24,6 +24,7 @@ export default function Admin({ user }) {
       {tab === 'reports' && <Reports user={user} onCount={setUnresolved} />}
       {tab === 'delivery' && <Delivery user={user} />}
       {tab === 'items' && <ItemsAdmin user={user} />}
+      {tab === 'missions' && <MissionsAdmin user={user} />}
       {tab === 'settings' && <SettingsAdmin user={user} />}
     </div>
   );

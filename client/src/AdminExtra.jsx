@@ -266,3 +266,105 @@ export function SettingsAdmin({ user }) {
     </div>
   );
 }
+
+/* ---------------- ウィークリー／スペシャルミッション ---------------- */
+// datetime-local(端末の時刻)とミリ秒の相互変換
+const toLocal = (ms) => { if (!ms) return ''; const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
+const fromLocal = (v) => (v ? new Date(v).getTime() : 0);
+const TAB_LABEL = { weekly: 'ウィークリー', special: 'スペシャル' };
+
+export function MissionsAdmin({ user }) {
+  const { data, error, load } = useAdminLoad(user, '/missions', 'missions');
+  const [types, setTypes] = useState({ play: 'マッチをプレイ', win: '勝利する', login: 'ログインする（日数）', correct: '問題に正解する（回数）' });
+  useEffect(() => { adminApi(user, '/missions').then((d) => d.types && setTypes(d.types)).catch(() => {}); }, [user]);
+  const blank = { tab: 'weekly', title: '', type: 'play', goal: 10, coins: 100, sand: 0, startAt: 0, endAt: 0, enabled: true, order: 0 };
+  const [f, setF] = useState(blank);
+  const [editing, setEditing] = useState(null);
+  const [msg, setMsg] = useState(null);
+
+  const save = async () => {
+    try {
+      if (editing) await adminApi(user, `/missions/${editing}`, { method: 'PUT', body: f });
+      else await adminApi(user, '/missions', { method: 'POST', body: f });
+      setMsg({ ok: true, text: editing ? '更新しました' : '追加しました' }); setF(blank); setEditing(null); load();
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
+  const edit = (m) => { setEditing(m.id); setF({ ...blank, ...m }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const toggle = async (m) => { await adminApi(user, `/missions/${m.id}`, { method: 'PUT', body: { enabled: m.enabled === false } }); load(); };
+  const del = async (m) => { if (window.confirm(`「${m.title}」を削除しますか？`)) { await adminApi(user, `/missions/${m.id}`, { method: 'DELETE' }); load(); } };
+
+  const status = (m) => {
+    const now = Date.now();
+    if (m.enabled === false) return ['無効', 'bg-slate-600'];
+    if (m.startAt && now < m.startAt) return ['開始前', 'bg-sky-700'];
+    if (m.endAt && now > m.endAt) return ['終了', 'bg-slate-600'];
+    return ['開催中', 'bg-emerald-600'];
+  };
+
+  return (
+    <div>
+      <h2 className="font-bold mb-2">{editing ? 'ミッションを編集' : 'ミッションを追加'}</h2>
+      <div className={`${card} space-y-3 mb-5 max-w-xl`}>
+        <div className="flex gap-2">
+          {Object.entries(TAB_LABEL).map(([k, label]) => (
+            <button key={k} onClick={() => setF({ ...f, tab: k })} className={`${btn} ${f.tab === k ? 'bg-sky-600 font-bold' : 'bg-[#0e1013]'}`}>{label}</button>
+          ))}
+        </div>
+        <input className={input} placeholder="タイトル（例: 今週10勝しよう）" maxLength={40} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">内容
+            <select className={`${input} !w-auto`} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+              {Object.entries(types).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-2">目標<input type="number" min={1} className={`${input} w-24`} value={f.goal} onChange={(e) => setF({ ...f, goal: e.target.value })} /></label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">報酬コイン<input type="number" min={0} className={`${input} w-24`} value={f.coins} onChange={(e) => setF({ ...f, coins: e.target.value })} /></label>
+          <label className="flex items-center gap-2">魔法の砂<input type="number" min={0} className={`${input} w-24`} value={f.sand} onChange={(e) => setF({ ...f, sand: e.target.value })} /></label>
+          <label className="flex items-center gap-2">表示順<input type="number" className={`${input} w-20`} value={f.order} onChange={(e) => setF({ ...f, order: e.target.value })} /></label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">開始<input type="datetime-local" className={`${input} !w-auto`} value={toLocal(f.startAt)} onChange={(e) => setF({ ...f, startAt: fromLocal(e.target.value) })} /></label>
+          <label className="flex items-center gap-2">終了<input type="datetime-local" className={`${input} !w-auto`} value={toLocal(f.endAt)} onChange={(e) => setF({ ...f, endAt: fromLocal(e.target.value) })} /></label>
+        </div>
+        <p className="text-xs text-slate-400">
+          ウィークリーは毎週月曜0時（日本時間）に進捗がリセットされます。スペシャルは開始〜終了の期間中の累計で、リセットされません（開始・終了は空欄なら無期限）。
+          タブごとに最大5件まで表示されます（表示順の小さい順）。「ログインする」は日数で数えます。
+        </p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.enabled !== false} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />有効にする</label>
+        {msg && <p className={`text-sm ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
+        <div className="flex gap-2">
+          <button onClick={save} className={`${btn} bg-emerald-500 font-bold`}>{editing ? '更新' : '追加'}</button>
+          {editing && <button onClick={() => { setEditing(null); setF(blank); }} className={`${btn} bg-slate-700`}>キャンセル</button>}
+        </div>
+      </div>
+
+      <h2 className="font-bold mb-2">登録済み</h2>
+      {error && <p className="text-red-400">{error}</p>}
+      <ul className="space-y-2">
+        {data?.map((m) => {
+          const [st, cls] = status(m);
+          return (
+            <li key={m.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold truncate flex items-center gap-2">
+                  <span className={`text-xs rounded px-2 py-0.5 ${cls}`}>{st}</span>
+                  <span className="text-xs rounded px-2 py-0.5 bg-[#0e1013]">{TAB_LABEL[m.tab]}</span>{m.title}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {types[m.type]} {m.goal} ・ <Coin n={m.coins} size={14} className="inline-flex text-amber-300" /> <Sand n={m.sand} size={16} className="inline-flex text-amber-300" />
+                  {m.startAt ? ` ・ ${new Date(m.startAt).toLocaleString('ja-JP')}〜` : ''}{m.endAt ? `${m.startAt ? '' : ' ・ 〜'}${new Date(m.endAt).toLocaleString('ja-JP')}` : ''}
+                </p>
+              </div>
+              <button onClick={() => edit(m)} className={`${btn} bg-slate-700`}>編集</button>
+              <button onClick={() => toggle(m)} className={`${btn} ${m.enabled === false ? 'bg-slate-600' : 'bg-sky-600'}`}>{m.enabled === false ? '有効にする' : '無効にする'}</button>
+              <button onClick={() => del(m)} className={`${btn} bg-red-600/80`}>削除</button>
+            </li>
+          );
+        })}
+        {data?.length === 0 && <li className="text-slate-400 text-center py-6">まだ登録されていません</li>}
+      </ul>
+    </div>
+  );
+}

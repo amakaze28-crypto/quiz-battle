@@ -63,7 +63,7 @@ export function mountApi(app) {
     const mails = await visibleMails(u);
     res.json({
       mail: mails.filter((m) => { const s = u.mailState[m.id] || {}; return !s.read || (((m.coins || 0) > 0 || (m.sand || 0) > 0) && !s.claimed); }).length,
-      mission: missions.view(u).filter((m) => m.done && !m.claimed).length,
+      mission: missions.view(u).filter((m) => m.done && !m.claimed).length + missions.claimableExtra(u),
       friend: u.incoming.length,
     });
   }));
@@ -95,7 +95,22 @@ export function mountApi(app) {
   }));
 
   // ---- ミッション ----
-  r.get('/missions', wrap(async (req, res) => res.json({ day: missions.dayKey(), missions: missions.view(await fresh(req)) })));
+  r.get('/missions', wrap(async (req, res) => {
+    const u = await fresh(req);
+    res.json({ day: missions.dayKey(), missions: missions.view(u), weekly: missions.extraView(u, 'weekly'), special: missions.extraView(u, 'special'), weekKey: missions.weekKey() });
+  }));
+
+  // ウィークリー／スペシャルの受け取り
+  r.post('/missions/x/:id/claim', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const item = [...missions.extraView(u, 'weekly'), ...missions.extraView(u, 'special')].find((m) => m.id === req.params.id);
+    if (!item) return res.status(404).json({ error: 'ミッションが見つかりません（期間外の可能性があります）' });
+    if (!item.done) return res.status(400).json({ error: 'まだ達成していません' });
+    if (item.claimed) return res.status(400).json({ error: 'すでに受け取り済みです' });
+    await store.updateUser(u.uid, { coins: u.coins + item.coins, sand: (u.sand || 0) + item.sand, mprog: missions.markClaimed(u, item.id) });
+    const nu = await fresh(req);
+    res.json(withProfile(req, nu, { missions: missions.view(nu), weekly: missions.extraView(nu, 'weekly'), special: missions.extraView(nu, 'special') }));
+  }));
 
   r.post('/missions/:key/claim', wrap(async (req, res) => {
     const u = await fresh(req);
@@ -106,7 +121,7 @@ export function mountApi(app) {
     const m = missions.current(u);
     m.claimed[item.key] = true;
     await store.updateUser(u.uid, { coins: u.coins + item.reward, missions: m });
-    res.json(withProfile(req, await fresh(req), { missions: missions.view(await fresh(req)) }));
+    { const nu = await fresh(req); res.json(withProfile(req, nu, { missions: missions.view(nu), weekly: missions.extraView(nu, 'weekly'), special: missions.extraView(nu, 'special') })); }
   }));
 
   // ---- フレンド ----
