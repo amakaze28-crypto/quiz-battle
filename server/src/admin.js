@@ -7,6 +7,8 @@ import { saveSettings, settings } from './settings.js';
 import * as missions from './missions.js';
 import { listGachas, normalizeGacha, NORMAL_ID } from './gachaDefs.js';
 import * as sounds from './sounds.js';
+import * as badges from './badges.js';
+import { rotateSeason } from './seasons.js';
 
 export function mountAdmin(app, { io, matchmaker }) {
   const r = express.Router();
@@ -305,6 +307,49 @@ export function mountAdmin(app, { io, matchmaker }) {
     try { await sounds.saveSound(req.params.slot, req.body.name, req.body.data); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message }); }
   }));
   r.delete('/sounds/:slot', wrap(async (req, res) => { await sounds.deleteSound(req.params.slot); res.json({ ok: true }); }));
+
+  // ---- バッジ（名前・見た目・条件を管理者が決める） ----
+  const badgeBody = (b, partial = false) => {
+    const out = {};
+    if (!partial || b.name !== undefined) { out.name = String(b.name || '').trim().slice(0, 30); if (!out.name) throw new Error('バッジ名を入力してください'); }
+    if (b.desc !== undefined) out.desc = String(b.desc).slice(0, 100);
+    if (b.enabled !== undefined) out.enabled = !!b.enabled;
+    if (b.image !== undefined && b.image !== null) { if (!okImage(b.image)) throw new Error('画像(PNG/JPEG/WebP・約500KB未満)を指定してください'); out.image = b.image; }
+    if (b.cond) {
+      const t = b.cond.type;
+      if (!badges.COND_TYPES[t]) throw new Error('条件の種類を選んでください');
+      const cond = { type: t };
+      if (['wins', 'games', 'streak', 'loginDays', 'coins'].includes(t)) { cond.n = Math.max(1, Math.round(Number(b.cond.n) || 0)); }
+      if (t === 'rank') { if (badges.rankRequirement(b.cond.rank) === null) throw new Error('ランクを選んでください'); cond.rank = b.cond.rank; }
+      if (t === 'periodLogin') { cond.from = Number(b.cond.from) || 0; cond.to = Number(b.cond.to) || 0; if (!cond.from && !cond.to) throw new Error('期間を指定してください'); }
+      out.cond = cond;
+    } else if (!partial) throw new Error('条件を設定してください');
+    return out;
+  };
+  r.get('/badges', wrap(async (_req, res) => {
+    const all = await store.colList('badgedefs');
+    res.json({ badges: all.map(({ image, ...d }) => ({ ...d, src: `/badge-img/${d.id}?v=${d.updatedAt || 0}` })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), types: badges.COND_TYPES, ranks: badges.RANK_SPECS });
+  }));
+  r.post('/badges', wrap(async (req, res) => {
+    try {
+      const body = badgeBody(req.body);
+      if (!body.image) throw new Error('バッジの画像を選んでください');
+      const id = await store.colAdd('badgedefs', { ...body, enabled: body.enabled !== false, createdAt: Date.now(), updatedAt: Date.now() });
+      await badges.reloadBadgeDefs(); res.json({ id });
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  r.put('/badges/:id', wrap(async (req, res) => {
+    if (!(await store.colGet('badgedefs', req.params.id))) return res.status(404).json({ error: 'バッジが見つかりません' });
+    try { await store.colSet('badgedefs', req.params.id, { ...badgeBody(req.body, true), updatedAt: Date.now() }); await badges.reloadBadgeDefs(); res.json({ ok: true }); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  r.delete('/badges/:id', wrap(async (req, res) => { await store.colDel('badgedefs', req.params.id); await badges.reloadBadgeDefs(); res.json({ ok: true }); }));
+
+  // ---- シーズンを今すぐ終了して次へ（ランクリセット＋バッジ付与） ----
+  r.post('/season/rotate', wrap(async (_req, res) => {
+    if (!settings().season.enabled) return res.status(400).json({ error: 'シーズンが無効です。先に有効にして保存してください' });
+    res.json(await rotateSeason());
+  }));
 
   // ---- 問題の通報（問題ごとに集計） ----
   const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };

@@ -8,6 +8,8 @@ const DEFAULTS = {
   missionRewards: { login: 50, play: 100, win: 150 }, // ミッション報酬コイン
   renameCost: 100,                                      // 2回目以降の改名コスト(コイン)
   secondaryChance: 0.05,                                // Secondaryシステム(得点2倍)の発動確率
+  showQueueSize: true,                                  // マッチング中に待機人数を表示するか
+  season: { enabled: false, lengthDays: 30, number: 1, startAt: 0, resetPt: 0 }, // シーズン（切替でランクリセット）
   bots: { enabled: true, waitMin: 5, waitMax: 12 },     // botマッチ（ダイヤ帯まで）。待ち時間が waitMin〜waitMax 秒を超えるとbotが加わる
   gacha: {
     cost: 100,                                          // 1回あたりのコイン
@@ -38,6 +40,17 @@ function mergeGacha(src = {}) {
   };
 }
 
+function mergeSeason(src = {}) {
+  const d = DEFAULTS.season;
+  return {
+    enabled: src.enabled === undefined ? d.enabled : !!src.enabled,
+    lengthDays: num(src.lengthDays, 1, 3650, d.lengthDays),
+    number: num(src.number, 1, 100000, d.number),
+    startAt: Number.isFinite(Number(src.startAt)) ? Math.max(0, Math.round(Number(src.startAt))) : d.startAt,
+    resetPt: num(src.resetPt, 0, 6999, d.resetPt),
+  };
+}
+
 function mergeBots(src = {}) {
   const d = DEFAULTS.bots;
   const waitMin = num(src.waitMin, 0, 600, d.waitMin);
@@ -51,6 +64,8 @@ export async function loadSettings() {
     missionRewards: { ...DEFAULTS.missionRewards, ...(d.missionRewards || {}) },
     renameCost: d.renameCost ?? DEFAULTS.renameCost,
     secondaryChance: d.secondaryChance ?? DEFAULTS.secondaryChance,
+    showQueueSize: d.showQueueSize === undefined ? DEFAULTS.showQueueSize : !!d.showQueueSize,
+    season: mergeSeason(d.season),
     bots: mergeBots(d.bots),
     gacha: mergeGacha(d.gacha),
   };
@@ -67,6 +82,8 @@ export async function saveSettings(p) {
     },
     renameCost: num(p.renameCost, 0, 100000, current.renameCost),
     secondaryChance: Math.min(1, Math.max(0, Number.isFinite(Number(p.secondaryChance)) ? Number(p.secondaryChance) : current.secondaryChance)),
+    showQueueSize: p.showQueueSize === undefined ? current.showQueueSize : !!p.showQueueSize,
+    season: mergeSeason({ ...current.season, ...(p.season || {}) }),
     bots: mergeBots({ ...current.bots, ...(p.bots || {}) }),
     gacha: mergeGacha({ ...current.gacha, ...(p.gacha || {}) }),
   };

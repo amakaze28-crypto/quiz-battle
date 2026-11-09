@@ -11,6 +11,7 @@ import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
 import { listGachas, poolFor, isActive, costOf, NORMAL_ID } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
+import * as badges from './badges.js';
 
 const MAX_FRIENDS = 50;
 
@@ -63,7 +64,7 @@ export function mountApi(app) {
   };
 
   r.get('/summary', wrap(async (req, res) => {
-    const u = await fresh(req);
+    const u = (await badges.award(req.me.uid)) || (await fresh(req)); // コイン所持などの条件はここでも判定
     const mails = await visibleMails(u);
     res.json({
       mail: mails.filter((m) => { const s = u.mailState[m.id] || {}; return !s.read || (((m.coins || 0) > 0 || (m.sand || 0) > 0) && !s.claimed); }).length,
@@ -130,7 +131,7 @@ export function mountApi(app) {
 
   // ---- フレンド ----
   const friendView = (f) => ({
-    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto',
+    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto', badgeInfo: badges.equippedBadge(f),
     rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), pt: f.pt || 0, mr: f.mr ?? null, isMaster: !!f.isMaster, online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
@@ -251,7 +252,9 @@ export function mountApi(app) {
   r.post('/badge', wrap(async (req, res) => {
     const u = await fresh(req);
     const badge = String(req.body.badge || 'auto');
-    if (badge !== 'auto' && badge !== 'none') {
+    if (/^[bs]:/.test(badge)) {
+      if (!(u.badges || []).some((b) => b.id === badge)) return res.status(400).json({ error: 'まだ獲得していないバッジです' });
+    } else if (badge !== 'auto' && badge !== 'none') {
       const mine = rankInfo(u, getEmperorSet());
       const order = ['rookie', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'emperor'];
       if (order.indexOf(badge) < 0 || order.indexOf(badge) > order.indexOf(mine.key)) return res.status(400).json({ error: 'まだ獲得していないバッジです' });
@@ -459,6 +462,15 @@ export function mountApi(app) {
 
   app.use('/api', r);
 
+  // バッジ画像の配信（認証不要）
+  app.get('/badge-img/:id', async (req, res) => {
+    try {
+      const d = await store.colGet('badgedefs', req.params.id);
+      const m = d?.image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+      if (!m) return res.status(404).end();
+      res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable').send(Buffer.from(m[2], 'base64'));
+    } catch { res.status(500).end(); }
+  });
   // ガチャのバナー画像・差し替え音源の配信（認証不要）
   app.get('/gacha-banner/:id', async (req, res) => {
     try {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { callApi, SERVER_URL } from './api';
+import { sfx } from './audio';
 import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
 import Hud from './Hud';
 import AccountMenu from './AccountMenu';
@@ -143,6 +144,7 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
       // 抽選・支払いはサーバーで確定済み。ここからは演出だけ
       try {
         await loadDove();
+        sfx('dove'); // 鳩が飛び立つ音
         await window.DoveGacha.play({ results: doveResults(r.results), sound: true });
       } catch (e) { console.error(e); }
       setResult(r);

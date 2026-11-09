@@ -273,6 +273,7 @@ export function SettingsAdmin({ user }) {
           <Field key={k} label={label}><Num value={s.missionRewards[k]} onChange={(v) => setS({ ...s, missionRewards: { ...s.missionRewards, [k]: v } })} /></Field>
         ))}
         <h2 className="font-bold mt-3 mb-1">その他</h2>
+        <label className="flex items-center justify-between gap-3 py-1.5"><span>マッチング中に待機人数を表示する</span><input type="checkbox" checked={s.showQueueSize !== false} onChange={(ev) => setS({ ...s, showQueueSize: ev.target.checked })} /></label>
         <Field label="改名コスト（2回目以降・コイン）"><Num value={s.renameCost} onChange={(v) => setS({ ...s, renameCost: v })} /></Field>
         <Field label="Secondary(その問題が全員2倍)になる確率 %"><Num value={Math.round(s.secondaryChance * 1000) / 10} step={0.5} max={100} onChange={(v) => setS({ ...s, secondaryChance: v / 100 })} /></Field>
       </div>

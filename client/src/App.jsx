@@ -21,15 +21,15 @@ import Gacha from './Gacha';
 import Title from './Title';
 import RankBadge from './RankBadge';
 import { BgLayer, Panel, Btn, Loading } from './Ui';
-import { Avatar } from './Parts';
+import { Avatar, Banner } from './Parts';
 import { sfx } from './audio';
 import { useBgm } from './useAudio';
 
-export function Center({ children }) {
+export function Center({ children, wide }) {
   return (
-    <div className="min-h-screen grid place-items-center p-6 text-center text-white">
+    <div className={`min-h-screen grid place-items-center ${wide ? 'p-2' : 'p-6'} text-center text-white`}>
       <BgLayer />
-      <Panel className="px-5 py-6 w-full max-w-sm">{children}</Panel>
+      <Panel className={wide ? 'px-2 py-6 w-full max-w-2xl' : 'px-5 py-6 w-full max-w-sm'}>{children}</Panel>
     </div>
   );
 }
@@ -57,7 +57,7 @@ function Authed({ user }) {
   const withGate = (el) => <>{el}{needName && <NameSetup profile={g.profile} call={call} />}</>;
 
   // BGM: マッチ成立後は対戦曲(3曲からランダム)、それ以外はホーム曲
-  useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : view === 'gacha' ? 'gacha' : 'home');
+  useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : view === 'gacha' ? 'gacha' : view === 'admin' ? 'none' : 'home');
 
   // 効果音
   const qIndex = g.q?.index;
@@ -81,17 +81,22 @@ function Authed({ user }) {
 
   if (g.phase === 'matched') {
     return (
-      <Center>
+      <Center wide>
         <p className="ui-title text-2xl mb-4">対戦相手が見つかりました！</p>
-        <ul className="space-y-2 mb-4">
-          {g.match.players.map((p) => (
-            <li key={p.uid} className="flex items-center gap-3 justify-center">
-              <Avatar iconId={p.iconId} frameId={p.frameId} size={36} />
-              <RankBadge rank={{ key: p.rankKey, sub: p.rankSub, label: p.rank }} size={36} showSub={false} />
-              <span>{p.name}（{p.rank}）</span>
-            </li>
+        <div className="w-full max-w-2xl grid gap-1.5 sm:gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${g.match.players.length}, minmax(0, 1fr))` }}>
+          {g.match.players.map((p, i) => (
+            <div key={p.uid} className="pop-in rounded-xl overflow-hidden flex flex-col items-center text-center pb-2"
+              style={{ background: 'linear-gradient(180deg,rgba(18,40,82,.92),rgba(8,20,46,.92))', border: '2px solid #c9a24a', animationDelay: `${i * 0.12}s` }}>
+              {p.bannerId && p.bannerId !== 'none'
+                ? <Banner bannerId={p.bannerId} className="w-full" style={{ aspectRatio: '4 / 1' }} />
+                : <div className="w-full" style={{ aspectRatio: '4 / 1', background: 'linear-gradient(90deg,#1b3b78,#0e2147)' }} />}
+              <div className="mt-2 w-[52%]"><Avatar iconId={p.iconId} frameId={p.frameId} size={0} /></div>
+              <div className="mt-1 w-[34%]"><RankBadge rank={{ key: p.rankKey, sub: p.rankSub, label: p.rank }} size="fill" showSub={false} /></div>
+              <p className="w-full px-1 font-bold truncate" style={{ fontSize: 'clamp(11px, 2.6vw, 17px)' }}>{p.name}</p>
+              <p className="text-slate-300" style={{ fontSize: 'clamp(9px, 2.1vw, 13px)' }}>{p.rank}</p>
+            </div>
           ))}
-        </ul>
+        </div>
         <p className="animate-pulse">まもなく開始…</p>
       </Center>
     );
@@ -100,7 +105,7 @@ function Authed({ user }) {
   if (g.phase === 'result') return <Result g={g} user={user} />;
 
   if (view === null) {
-    return <Loading sub={g.conn !== 'online' ? 'サーバーに接続中（無料枠は起動に時間がかかることがあります）' : undefined} />;
+    return <Loading sub={g.conn !== 'online'} />;
   }
 
   const common = { user, go: setView, summary, refresh };

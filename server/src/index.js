@@ -16,6 +16,8 @@ import { Matchmaker } from './matchmaker.js';
 import { Room } from './game.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet, startEmperorRefresh } from './emperors.js';
+import * as badges from './badges.js';
+import { startSeasonTimer } from './seasons.js';
 
 store.initStore();
 await loadSettings();
@@ -23,6 +25,8 @@ await seedIfEmpty();
 await reloadQuestions();
 await missions.reloadDefs();
 startEmperorRefresh();
+await badges.reloadBadgeDefs();
+startSeasonTimer();
 
 const app = express();
 app.use(cors({ origin: cfg.origin }));
@@ -83,8 +87,11 @@ io.on('connection', async (socket) => {
   presence.add(uid);
   if (!wasOnline) {
     // ログイン時刻の記録とデイリーミッション「ログインする」の達成
-    await store.updateUser(uid, { lastLoginAt: Date.now(), missions: missions.touchLogin(socket.data.profile), mprog: missions.recordEvent(socket.data.profile, { login: 1 }) });
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10); // 日本時間の日付
+    const newDay = socket.data.profile.lastLoginDay !== today;
+    await store.updateUser(uid, { lastLoginAt: Date.now(), ...(newDay ? { lastLoginDay: today, loginDays: (socket.data.profile.loginDays || 0) + 1 } : {}), missions: missions.touchLogin(socket.data.profile), mprog: missions.recordEvent(socket.data.profile, { login: 1 }) });
   }
+  if (!wasOnline) await badges.award(uid, { login: true });
   const current = await store.getUser(uid);
   socket.emit('profile', profilePayload(current, isAdmin));
 

@@ -46,7 +46,7 @@ export class Matchmaker {
     }
     this.fillWithBots(now);
     for (const e of this.queue) {
-      e.socket.emit('queue:status', { waitSec: Math.floor((now - e.joinedAt) / 1000), size: this.queue.length });
+      e.socket.emit('queue:status', { waitSec: Math.floor((now - e.joinedAt) / 1000), size: settings().showQueueSize ? this.queue.length : null });
     }
   }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from './api';
 import RankBadge from './RankBadge';
 import { GachasAdmin, SoundsAdmin } from './AdminGacha';
+import { BadgesAdmin, SeasonAdmin } from './AdminBadges';
 import { Reports, QuestionReports, Delivery, ItemsAdmin, MissionsAdmin, SettingsAdmin } from './AdminExtra';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
@@ -16,7 +17,7 @@ export default function Admin({ user }) {
     adminApi(user, '/reports').then((d) => setUnresolved(d.unresolved)).catch(() => {});
     adminApi(user, '/qreports').then((d) => setQUnresolved(d.unresolved)).catch(() => {});
   }, [user]);
-  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['qreports', `問題通報${qUnresolved ? `(${qUnresolved})` : ''}`], ['delivery', 'メール'], ['items', 'アイテム'], ['gachas', 'ガチャ'], ['sounds', '音源'], ['missions', 'ミッション'], ['settings', '設定']];
+  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['qreports', `問題通報${qUnresolved ? `(${qUnresolved})` : ''}`], ['delivery', 'メール'], ['items', 'アイテム'], ['gachas', 'ガチャ'], ['sounds', '音源'], ['badges', 'バッジ'], ['season', 'シーズン'], ['missions', 'ミッション'], ['settings', '設定']];
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-5">
@@ -32,6 +33,8 @@ export default function Admin({ user }) {
       {tab === 'items' && <ItemsAdmin user={user} />}
       {tab === 'gachas' && <GachasAdmin user={user} />}
       {tab === 'sounds' && <SoundsAdmin user={user} />}
+      {tab === 'badges' && <BadgesAdmin user={user} />}
+      {tab === 'season' && <SeasonAdmin user={user} />}
       {tab === 'missions' && <MissionsAdmin user={user} />}
       {tab === 'settings' && <SettingsAdmin user={user} />}
     </div>

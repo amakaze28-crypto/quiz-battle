@@ -216,6 +216,7 @@ export function GachasAdmin({ user }) {
   );
 }
 
+let cur = null; let curTimer = null; // 試聴中のAudio（1つだけ）
 const readDataUrl = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
 
 // 音源の追加・差し替え（場面ごと）。差し替えがない場面は同梱の音源が流れる
@@ -235,9 +236,20 @@ export function SoundsAdmin({ user }) {
     setBusy('');
   };
   const reset = async (slot) => { try { await adminApi(user, `/sounds/${slot}`, { method: 'DELETE' }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); } };
+  const [playing, setPlaying] = useState('');
+  const stopAll = () => { if (cur) { cur.pause(); cur.src = ''; cur = null; } clearTimeout(curTimer); };
+  useEffect(() => stopAll, []); // 画面を離れたら止める
+  // 試聴は常に1つだけ。別の曲を試聴したら前の試聴は止まる（同じ曲をもう一度押すと停止）
   const play = (slot, kind) => {
+    const was = playing === slot;
+    stopAll(); setPlaying('');
+    if (was) return;
     const url = data[slot] ? `${SERVER_URL}/sound/${slot}?v=${data[slot].v}` : kind === 'bgm' ? `/audio/bgm-${slot}.mp3` : `/audio/se-${slot === 'gacha_se' ? 'gacha' : slot}.mp3`;
-    const a = new Audio(url); a.volume = getAudio().bgmVol; a.play().catch(() => {}); setTimeout(() => a.pause(), kind === 'bgm' ? 10000 : 4000);
+    const a = new Audio(url); a.volume = Math.min(1, kind === 'bgm' ? getAudio().bgmVol : getAudio().seVol);
+    a.onended = () => { if (cur === a) { cur = null; setPlaying(''); } };
+    cur = a; setPlaying(slot);
+    a.play().catch(() => { setPlaying(''); });
+    curTimer = setTimeout(() => { if (cur === a) { stopAll(); setPlaying(''); } }, kind === 'bgm' ? 15000 : 6000);
   };
   const row = (slot, label, kind) => (
     <li key={slot} className={`${card} !p-3 flex items-center gap-3 flex-wrap`}>
@@ -245,7 +257,7 @@ export function SoundsAdmin({ user }) {
         <p className="font-semibold">{label}</p>
         <p className="text-xs text-slate-400 truncate">{data[slot] ? `差し替え中: ${data[slot].name}（${(data[slot].size / 1024 / 1024).toFixed(1)}MB）` : '標準の音源'}</p>
       </div>
-      <button onClick={() => play(slot, kind)} className={`${btn} bg-slate-700`}>▶ 試聴</button>
+      <button onClick={() => play(slot, kind)} className={`${btn} bg-slate-700`}>{playing === slot ? '■ 停止' : '▶ 試聴'}</button>
       <label className={`${btn} bg-sky-600 cursor-pointer ${busy === slot ? 'opacity-50' : ''}`}>
         {busy === slot ? 'アップロード中…' : '音源を選ぶ'}
         <input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" className="hidden" disabled={!!busy} onChange={(e) => { upload(slot, e.target.files?.[0]); e.target.value = ''; }} />

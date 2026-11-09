@@ -1,3 +1,4 @@
+import BadgeArt from './Badge';
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
 import PlayerCard, { TIER_LABEL } from './PlayerCard';
@@ -92,6 +93,16 @@ function CardEditor({ user, profile, call }) {
       <div className="flex flex-wrap gap-2">
         {[['auto', '現在のランク'], ...TIERS.slice(0, mine + 1).map((t) => [t, TIER_LABEL[t]]), ['none', 'なし']].map(([k, label]) => (
           <button key={k} onClick={() => badge(k)} className={`px-3 py-1.5 rounded-lg text-sm bg-black/25 ${(profile.badgeId || 'auto') === k ? sel : ''}`}>{label}</button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-300 mt-3 mb-1">獲得したバッジ（{(profile.badges || []).length}）</p>
+      {(profile.badges || []).length === 0 && <p className="text-xs text-slate-400">まだありません。勝利やログイン、ランクの到達などで手に入ります。</p>}
+      <div className="grid grid-cols-4 gap-2">
+        {[...(profile.badges || [])].sort((a, b) => b.at - a.at).map((b) => (
+          <button key={b.id} onClick={() => badge(b.id)} className={`rounded-lg p-1.5 bg-black/25 flex flex-col items-center gap-1 ${profile.badgeId === b.id ? sel : ''}`} title={b.desc || b.name}>
+            <BadgeArt b={b} size={52} />
+            <span className="text-[10px] leading-tight text-center break-all">{b.name}</span>
+          </button>
         ))}
       </div>
     </Panel>

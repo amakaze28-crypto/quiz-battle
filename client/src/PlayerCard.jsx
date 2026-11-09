@@ -1,6 +1,7 @@
 import { Box, fs } from './Stage';
 import { Avatar } from './Parts';
 import RankBadge from './RankBadge';
+import BadgeArt from './Badge';
 import { charSrc } from './icons';
 
 export const TIER_LABEL = { rookie: 'ルーキー', bronze: 'ブロンズ', silver: 'シルバー', gold: 'ゴールド', platinum: 'プラチナ', diamond: 'ダイヤ', master: 'マスター', emperor: 'エンペラー' };
@@ -8,6 +9,7 @@ export const TIER_LABEL = { rookie: 'ルーキー', bronze: 'ブロンズ', silv
 // プレイヤーカード（バナー）。/ui/card.jpg（1024x1536）の上に、アイコン・バッジ・キャラ・名前を重ねる。
 // c = { displayName, iconId, frameId, charId, badgeId, rank } / 親の幅に合わせて拡大縮小（cqw）
 export default function PlayerCard({ c, className = '', onClick }) {
+  const earned = /^[bs]:/.test(c.badgeId || '') ? c.badgeInfo : null;
   const badge = c.badgeId === 'none' ? null : (c.badgeId && c.badgeId !== 'auto' ? { key: c.badgeId, label: TIER_LABEL[c.badgeId] } : c.rank);
   const name = c.displayName || '';
   const nameSize = name.length <= 6 ? 34 : name.length <= 9 ? 28 : 22;
@@ -22,7 +24,8 @@ export default function PlayerCard({ c, className = '', onClick }) {
       <Box x={48} y={248} w={234} h={234}><Avatar iconId={c.iconId} frameId={c.frameId} size={0} /></Box>
       <Box x={92} y={548} w={205} h={60} className="flex items-center" style={{ fontSize: fs(nameSize), fontWeight: 800, color: '#fff4d2', textShadow: '0 2px 4px #000', whiteSpace: 'nowrap', overflow: 'hidden' }}>{name}</Box>
       <Box x={100} y={652} w={196} h={60} className="flex items-center" style={{ fontSize: fs(c.rank?.label?.length > 6 ? 24 : 30), fontWeight: 800, color: '#e6ecf7', textShadow: '0 2px 4px #000', whiteSpace: 'nowrap' }}>{c.rank?.label}</Box>
-      {badge && <Box x={45} y={770} w={240} h={240}><RankBadge rank={badge} size="fill" showSub={badge === c.rank} /></Box>}
+      {earned && <Box x={45} y={770} w={240} h={240}><BadgeArt b={earned} /></Box>}
+      {!earned && badge && <Box x={45} y={770} w={240} h={240}><RankBadge rank={badge} size="fill" showSub={badge === c.rank} /></Box>}
     </div>
   );
 }

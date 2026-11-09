@@ -9,6 +9,7 @@ import { profilePayload } from './profile.js';
 import { getEmperorSet, refreshEmperors } from './emperors.js';
 import { planAnswer, isBot } from './bots.js';
 import { catOf } from './questions.js';
+import * as badges from './badges.js';
 
 const mean = (arr) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
 const limitSec = () => cfg.questionTimeMs / 1000;
@@ -185,6 +186,9 @@ export class Room {
         next.games = (fresh.games || 0) + 1;
         next.wins = (fresh.wins || 0) + (won ? 1 : 0);
         next.losses = (fresh.losses || 0) + (p.delta < 0 ? 1 : 0);
+        next.streak = won ? (fresh.streak || 0) + 1 : p.delta < 0 ? 0 : (fresh.streak || 0);
+        next.bestStreak = Math.max(fresh.bestStreak || 0, next.streak);
+        next.seasonGames = (fresh.seasonGames || 0) + 1;
         next.missions = missions.recordMatch(fresh, won);
         next.mprog = missions.recordEvent(fresh, { play: 1, win: won ? 1 : 0, correct: p.stat.correct });
         // bot用の統計(正答率・平均解答秒数)
@@ -202,7 +206,7 @@ export class Room {
         const seen = new Set();
         next.wrongQs = [...(p.wrongList || []).reverse(), ...(fresh.wrongQs || [])].filter((w) => !seen.has(w.id) && seen.add(w.id)).slice(0, 20);
         await store.updateUser(p.uid, next);
-        p.profile = next;
+        p.profile = (await badges.award(p.uid)) || next;
       }
       await refreshEmperors();
       await store.saveMatch({

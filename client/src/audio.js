@@ -13,7 +13,7 @@ export const SOUND_SLOTS = [
   ['battle1', '対戦 曲1', 'bgm'], ['battle2', '対戦 曲2', 'bgm'], ['battle3', '対戦 曲3', 'bgm'],
   ['tap', 'ボタンを押す', 'se'], ['queue', 'マッチング開始', 'se'], ['match', 'マッチング成立', 'se'], ['question', '問題表示', 'se'],
   ['correct', '正解', 'se'], ['wrong', '不正解', 'se'], ['secondary', 'Secondary発動', 'se'], ['tick', '残り時間', 'se'],
-  ['win', '勝利', 'se'], ['lose', '敗北', 'se'], ['ok', '決定・完了', 'se'], ['coin', 'コイン獲得', 'se'], ['gacha_se', 'ガチャを引く', 'se'], ['rare', 'レア獲得', 'se'],
+  ['win', '勝利', 'se'], ['lose', '敗北', 'se'], ['ok', '決定・完了', 'se'], ['coin', 'コイン獲得', 'se'], ['gacha_se', 'ガチャを引く', 'se'], ['dove', 'ガチャ演出：鳩が飛び立つ', 'se'], ['rare', 'レア獲得', 'se'],
 ];
 export async function loadSoundOverrides() {
   try {
@@ -31,7 +31,7 @@ export async function loadSoundOverrides() {
   } catch { /* 取得できなければ同梱の音源を使う */ }
 }
 const BATTLE = ['battle1', 'battle2', 'battle3'];
-const SE = ['tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha', 'rare', 'win', 'lose', 'tick'];
+const SE = ['tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha', 'rare', 'win', 'lose', 'tick', 'dove'];
 
 const load = () => {
   try { return { bgm: true, se: true, bgmVol: 0.5, seVol: 0.8, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { bgm: true, se: true, bgmVol: 0.5, seVol: 0.8 }; }
@@ -119,7 +119,7 @@ export function previewBgm(name, ms = 8000) {
 export const playBgm = (name) => {
   clearTimeout(prevTimer); prevWant = null; // 試聴中に画面が変わったら試聴は終了
   if (name === 'battle') { if (!battlePick) { const c = getBattleBgm(); battlePick = c === 'random' ? BATTLE[Math.floor(Math.random() * BATTLE.length)] : c; } want = battlePick; }
-  else { battlePick = null; want = name; }
+  else { battlePick = null; want = BGM[name] ? name : null; } // 'none' など未定義の名前は「何も流さない」
   apply();
 };
 

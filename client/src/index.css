@@ -44,3 +44,6 @@ body { background: transparent; color: #fff; overscroll-behavior: none; -webkit-
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+.fade-text { animation: fadeText .8s ease both; }
+@keyframes fadeText { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

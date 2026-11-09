@@ -1,7 +1,7 @@
 import * as store from './store.js';
 
 // 管理画面から差し替える音源。Firestoreは1件1MBまでなので、base64を分割して保存する
-export const SLOTS = ['title', 'home', 'battle1', 'battle2', 'battle3', 'gacha', 'tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha_se', 'rare', 'win', 'lose', 'tick'];
+export const SLOTS = ['title', 'home', 'battle1', 'battle2', 'battle3', 'gacha', 'tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha_se', 'rare', 'win', 'lose', 'tick', 'dove'];
 const CHUNK = 600_000;
 export const MAX_BYTES = 12 * 1024 * 1024;
 
