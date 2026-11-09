@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // レート・戦績の書き込みはサーバー(Admin SDK)のみ。クライアントは書き込み不可
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /matches/{id} {
+      allow read, write: if false;
+    }
+  }
+}
