@@ -92,7 +92,7 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({
       total: users.length,
       players: users.slice(0, 200).map((u) => ({
-        uid: u.uid, displayName: u.displayName, email: u.email || '', iconId: u.iconId || 'default', coins: u.coins || 0, friendCode: u.friendCode || '',
+        uid: u.uid, displayName: u.displayName, email: u.email || '', iconId: u.iconId || 'default', frameId: u.frameId || 'none', coins: u.coins || 0, sand: u.sand || 0, friendCode: u.friendCode || '',
         pt: u.pt ?? 0, mr: u.mr ?? null, isMaster: !!u.isMaster,
         games: u.games || 0, wins: u.wins || 0, losses: u.losses || 0,
         banned: !!u.banned, banReason: u.banReason || '',
@@ -116,12 +116,13 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({ ok: true });
   }));
 
-  // ---- コイン付与（マイナスで減算） ----
+  // ---- コイン・砂の付与（マイナスで減算） ----
   r.post('/players/:uid/coins', wrap(async (req, res) => {
     const u = await store.getUser(req.params.uid);
     const delta = Math.round(Number(req.body.delta));
+    const key = req.body.currency === 'sand' ? 'sand' : 'coins';
     if (!u || !Number.isFinite(delta)) return res.status(400).json({ error: '入力が不正です' });
-    await store.updateUser(u.uid, { coins: Math.max(0, (u.coins || 0) + delta) });
+    await store.updateUser(u.uid, { [key]: Math.max(0, (u[key] || 0) + delta) });
     res.json({ ok: true });
   }));
 
@@ -133,49 +134,44 @@ export function mountAdmin(app, { io, matchmaker }) {
     const title = String(req.body.title || '').trim().slice(0, 60);
     const body = String(req.body.body || '').trim().slice(0, 1000);
     const coins = Math.max(0, Math.round(Number(req.body.coins) || 0));
+    const sand = Math.max(0, Math.round(Number(req.body.sand) || 0));
     const to = String(req.body.to || 'all').trim() || 'all';
     if (!title) return res.status(400).json({ error: 'タイトルを入力してください' });
     if (to !== 'all' && !(await store.getUser(to))) return res.status(400).json({ error: '宛先のUIDが見つかりません' });
-    const id = await store.colAdd('mails', { to, title, body, coins, createdAt: Date.now() });
+    const id = await store.colAdd('mails', { to, title, body, coins, sand, createdAt: Date.now() });
     res.json({ id });
   }));
   r.delete('/mails/:id', wrap(async (req, res) => { await store.colDel('mails', req.params.id); res.json({ ok: true }); }));
-
-  // ---- お知らせ ----
-  r.get('/notices', wrap(async (_req, res) => {
-    res.json({ notices: (await store.colList('notices')).sort((a, b) => b.createdAt - a.createdAt) });
-  }));
-  r.post('/notices', wrap(async (req, res) => {
-    const title = String(req.body.title || '').trim().slice(0, 60);
-    const body = String(req.body.body || '').trim().slice(0, 2000);
-    if (!title) return res.status(400).json({ error: 'タイトルを入力してください' });
-    res.json({ id: await store.colAdd('notices', { title, body, createdAt: Date.now() }) });
-  }));
-  r.delete('/notices/:id', wrap(async (req, res) => { await store.colDel('notices', req.params.id); res.json({ ok: true }); }));
 
   // ---- 設定（ミッション報酬・改名コスト・Secondary確率） ----
   r.get('/settings', wrap(async (_req, res) => res.json(settings())));
   r.put('/settings', wrap(async (req, res) => res.json(await saveSettings(req.body || {}))));
 
-  // ---- ショップのアイコン（画像は256px程度に縮小したdata URLを想定） ----
-  const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 600_000;
-  r.get('/icons', wrap(async (_req, res) => {
-    res.json({ icons: (await store.colList('icons')).map(({ image, ...i }) => i).sort((a, b) => b.createdAt - a.createdAt) });
+  // ---- アイテム（アイコン・フレーム・バナー）。画像はブラウザ側で縮小したdata URLを想定 ----
+  const TYPES = ['icon', 'frame', 'banner'];
+  const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 700_000;
+  r.get('/items', wrap(async (_req, res) => {
+    res.json({ items: (await store.colList('items')).map(({ image, ...i }) => i).sort((a, b) => b.createdAt - a.createdAt) });
   }));
-  r.post('/icons', wrap(async (req, res) => {
+  r.post('/items', wrap(async (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 30);
-    const price = Math.max(0, Math.round(Number(req.body.price)));
-    if (!name || !Number.isFinite(price)) return res.status(400).json({ error: '名前と価格を入力してください' });
-    if (!okImage(req.body.image)) return res.status(400).json({ error: '画像(PNG/JPEG/WebP・600KB未満)を指定してください' });
-    res.json({ id: await store.colAdd('icons', { name, price, image: req.body.image, onSale: req.body.onSale !== false, createdAt: Date.now() }) });
+    const price = Math.max(0, Math.round(Number(req.body.price) || 0));
+    const { type, rarity } = req.body;
+    if (!name) return res.status(400).json({ error: '名前を入力してください' });
+    if (!TYPES.includes(type) || !RAR.includes(rarity)) return res.status(400).json({ error: '種類とレア度を選んでください' });
+    if (!okImage(req.body.image)) return res.status(400).json({ error: '画像(PNG/JPEG/WebP・約500KB未満)を指定してください' });
+    res.json({ id: await store.colAdd('items', { name, type, rarity, price, image: req.body.image, onShop: !!req.body.onShop, inGacha: !!req.body.inGacha, createdAt: Date.now() }) });
   }));
-  r.put('/icons/:id', wrap(async (req, res) => {
+  r.put('/items/:id', wrap(async (req, res) => {
     const patch = {};
     if (typeof req.body.name === 'string' && req.body.name.trim()) patch.name = req.body.name.trim().slice(0, 30);
     if (req.body.price !== undefined && Number.isFinite(Number(req.body.price))) patch.price = Math.max(0, Math.round(Number(req.body.price)));
-    if (typeof req.body.onSale === 'boolean') patch.onSale = req.body.onSale;
-    if (!(await store.colGet('icons', req.params.id))) return res.status(404).json({ error: 'アイコンが見つかりません' });
-    await store.colSet('icons', req.params.id, patch);
+    if (RAR.includes(req.body.rarity)) patch.rarity = req.body.rarity;
+    if (typeof req.body.onShop === 'boolean') patch.onShop = req.body.onShop;
+    if (typeof req.body.inGacha === 'boolean') patch.inGacha = req.body.inGacha;
+    if (!(await store.colGet('items', req.params.id))) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    await store.colSet('items', req.params.id, patch);
     res.json({ ok: true });
   }));
 

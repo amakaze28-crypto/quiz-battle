@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from './api';
 import RankBadge from './RankBadge';
-import { Reports, Delivery, ShopAdmin, SettingsAdmin } from './AdminExtra';
+import { Reports, Delivery, ItemsAdmin, SettingsAdmin } from './AdminExtra';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
@@ -11,7 +11,7 @@ export default function Admin({ user }) {
   const [unresolved, setUnresolved] = useState(0);
   // メッセージ(通報)の未対応件数をタブに表示
   useEffect(() => { adminApi(user, '/reports').then((d) => setUnresolved(d.unresolved)).catch(() => {}); }, [user]);
-  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['delivery', 'メール・お知らせ'], ['shop', 'ショップ'], ['settings', '設定']];
+  const tabs = [['questions', '問題'], ['players', 'プレイヤー'], ['reports', `メッセージ${unresolved ? `(${unresolved})` : ''}`], ['delivery', 'メール'], ['items', 'アイテム'], ['settings', '設定']];
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-5">
@@ -23,7 +23,7 @@ export default function Admin({ user }) {
       {tab === 'players' && <Players user={user} />}
       {tab === 'reports' && <Reports user={user} onCount={setUnresolved} />}
       {tab === 'delivery' && <Delivery user={user} />}
-      {tab === 'shop' && <ShopAdmin user={user} />}
+      {tab === 'items' && <ItemsAdmin user={user} />}
       {tab === 'settings' && <SettingsAdmin user={user} />}
     </div>
   );
@@ -213,10 +213,11 @@ function Players({ user }) {
     return () => clearTimeout(t);
   }, [q, load]);
 
-  const coins = async (p) => {
-    const v = window.prompt(`${p.displayName} のコインを増減します（現在 ${p.coins}）。例: 100 / -50`, '100');
+  const give = async (p, currency) => {
+    const label = currency === 'sand' ? '魔法の砂' : 'コイン';
+    const v = window.prompt(`${p.displayName} の${label}を増減します（現在 ${currency === 'sand' ? p.sand : p.coins}）。例: 100 / -50`, '100');
     if (v === null) return;
-    try { await adminApi(user, `/players/${p.uid}/coins`, { method: 'POST', body: { delta: Number(v) } }); load(q); } catch (e) { alert(e.message); }
+    try { await adminApi(user, `/players/${p.uid}/coins`, { method: 'POST', body: { delta: Number(v), currency } }); load(q); } catch (e) { alert(e.message); }
   };
 
   const ban = async (p) => {
@@ -243,11 +244,12 @@ function Players({ user }) {
             <RankBadge rank={p.rank} size={44} />
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate">{p.displayName}{p.banned && <span className="ml-2 text-xs bg-red-600 rounded px-1.5 py-0.5">BAN中</span>}</p>
-              <p className="text-xs text-slate-400 truncate">{p.email} ・ {p.rank.label}（{p.isMaster ? `${p.mr} MR` : `${p.pt} pt`}）・ {p.games}戦 {p.wins}勝 {p.losses}敗 ・ {p.coins}コイン</p>
+              <p className="text-xs text-slate-400 truncate">{p.email} ・ {p.rank.label}（{p.isMaster ? `${p.mr} MR` : `${p.pt} pt`}）・ {p.games}戦 {p.wins}勝 {p.losses}敗 ・ {p.coins}コイン ・ 砂{p.sand}</p>
               <p className="text-xs text-slate-500 truncate select-all">UID: {p.uid}</p>
               {p.banned && p.banReason && <p className="text-xs text-red-300">理由: {p.banReason}</p>}
             </div>
-            <button onClick={() => coins(p)} className={`${btn} shrink-0 bg-slate-700`}>コイン</button>
+            <button onClick={() => give(p, 'coins')} className={`${btn} shrink-0 bg-slate-700`}>コイン</button>
+            <button onClick={() => give(p, 'sand')} className={`${btn} shrink-0 bg-slate-700`}>砂</button>
             <button onClick={() => ban(p)} className={`${btn} shrink-0 ${p.banned ? 'bg-slate-700' : 'bg-red-600'}`}>{p.banned ? '解除' : 'BAN'}</button>
           </li>
         ))}

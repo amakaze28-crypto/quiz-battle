@@ -97,7 +97,7 @@ io.on('connection', async (socket) => {
     if (fresh.banned) return;
     const info = rankInfo(fresh, getEmperorSet());
     matchmaker.join({
-      uid, name: fresh.displayName || name, iconId: fresh.iconId || 'default', socket, rating: ratingValue(fresh),
+      uid, name: fresh.displayName || name, iconId: fresh.iconId || 'default', frameId: fresh.frameId || 'none', bannerId: fresh.bannerId || 'none', socket, rating: ratingValue(fresh),
       rankLabel: info.label, rankKey: info.key, rankSub: info.sub,
     });
   });

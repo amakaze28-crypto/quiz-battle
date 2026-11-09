@@ -1,0 +1,151 @@
+import { useEffect, useState } from 'react';
+import { callApi } from './api';
+import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
+import Hud from './Hud';
+import AccountMenu from './AccountMenu';
+import ItemPreview from './ItemPreview';
+import { Coin, Sand, Dot, RarityTag } from './Parts';
+import { RARITY, RARITIES, TYPE_LABEL } from './icons';
+
+const panel = { background: 'linear-gradient(180deg,rgba(15,33,71,.92),rgba(10,21,48,.92))', border: '3px solid #c9a24a' };
+
+function ResultCard({ r, i }) {
+  const color = r.kind === 'item' ? RARITY[r.item.rarity].color : RARITY[r.rarity].color;
+  const strong = (r.kind === 'item' ? r.item.rarity : r.rarity) === 'legendary' || (r.kind === 'item' && r.item.rarity === 'epic');
+  return (
+    <div className={`${strong ? 'glow-card' : 'pop-in'} rounded-xl p-2 flex flex-col items-center text-center bg-[#0f1c38]`}
+      style={{ '--c': color, border: `3px solid ${color}`, animationDelay: `${i * 0.12}s` }}>
+      {r.kind === 'item' ? (
+        <>
+          <RarityTag rarity={r.item.rarity} className="self-start" />
+          <div className="my-2 w-full flex justify-center"><ItemPreview item={r.item} size="64px" /></div>
+          <p className="text-xs font-bold text-white truncate w-full">{r.item.name}</p>
+          <p className="text-[10px] text-slate-300">{TYPE_LABEL[r.item.type]}</p>
+          {r.duplicate
+            ? <p className="mt-1 text-[11px] text-amber-300 font-bold">被り → 砂 +{r.sand}</p>
+            : <p className="mt-1 text-[11px] text-emerald-300 font-extrabold">NEW!</p>}
+        </>
+      ) : (
+        <>
+          <RarityTag rarity={r.rarity} className="self-start" />
+          <img src="/ui/sand.png" alt="" className="my-2 w-16 h-16 object-contain" />
+          <p className="text-xs font-bold text-white">魔法の砂</p>
+          <p className="mt-1 text-sm text-amber-300 font-extrabold">+{r.sand}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Results({ data, onClose }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setStep(1), data.results.length * 120 + 500); return () => clearTimeout(t); }, [data]);
+  const best = data.results.reduce((m, r) => Math.max(m, RARITIES.indexOf(r.kind === 'item' ? r.item.rarity : r.rarity)), 0);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 overflow-y-auto p-4" onClick={step ? onClose : undefined}>
+      <div className="max-w-md mx-auto text-white py-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-center text-xl font-extrabold mb-1" style={{ color: RARITY[RARITIES[best]].color }}>ガチャ結果</h2>
+        <div className={`grid gap-2 my-4 ${data.results.length > 1 ? 'grid-cols-3' : 'grid-cols-1 max-w-[180px] mx-auto'}`}>
+          {data.results.map((r, i) => <ResultCard key={i} r={r} i={i} />)}
+        </div>
+        <p className="text-center text-sm text-slate-200">獲得した魔法の砂 <Sand n={data.sandGain} className="text-amber-300" /></p>
+        <button onClick={onClose} disabled={!step} className="mt-5 w-full py-3 rounded-xl bg-emerald-500 font-bold disabled:opacity-40">OK</button>
+      </div>
+    </div>
+  );
+}
+
+function RatesModal({ info, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 overflow-y-auto p-4" onClick={onClose}>
+      <div className="max-w-md mx-auto my-4 rounded-2xl bg-[#14213d] border border-[#c9a24a]/70 p-5 text-white" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">提供割合</h2><button onClick={onClose} className="text-slate-400 text-xl">✕</button></div>
+        <p className="text-sm mb-1">1回 <Coin n={info.cost} className="text-amber-300" />　／　10回 <Coin n={info.cost * 10} className="text-amber-300" /></p>
+        <p className="text-sm mb-3">アイテム {info.rates.item}%　／　魔法の砂 {info.rates.sand}%</p>
+        <table className="w-full text-sm mb-4">
+          <thead><tr className="text-slate-400 text-left"><th>レア度</th><th>アイテム</th><th>砂(確率)</th><th>砂の量</th><th>被り時</th></tr></thead>
+          <tbody>
+            {RARITIES.map((x) => (
+              <tr key={x} className="border-t border-white/10">
+                <td className="py-1.5 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
+                <td>{info.rates.itemRarity[x]}%</td><td>{info.rates.sandRarity[x]}%</td><td>{info.sandAmounts[x]}</td><td>+{info.dupSand[x]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-slate-400 mb-2">※ 出るアイテムがないレア度は除いて按分されています。被ったアイテムは魔法の砂に変わります。</p>
+        <h3 className="font-bold mb-2">排出アイテム（{info.pool.length}）</h3>
+        <ul className="space-y-1.5">
+          {info.pool.map((i) => (
+            <li key={i.id} className="flex items-center gap-2 text-sm">
+              <RarityTag rarity={i.rarity} /><span className="truncate flex-1">{i.name}</span><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span>
+              {i.owned && <span className="text-xs text-emerald-400">所持</span>}
+            </li>
+          ))}
+          {info.pool.length === 0 && <li className="text-slate-400 text-sm">まだ排出アイテムはありません（砂のみ）</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export default function Gacha({ user, g, call, go, summary, onLogout }) {
+  const { profile } = g;
+  const [menu, setMenu] = useState(false);
+  const [info, setInfo] = useState(null);
+  const [rates, setRates] = useState(false);
+  const [result, setResult] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { callApi(user, '/gacha/info').then(setInfo).catch((e) => setMsg(e.message)); }, [user, result]);
+
+  const pull = async (count) => {
+    if (busy) return;
+    setBusy(true); setMsg('');
+    try { setResult(await call('/gacha/pull', { method: 'POST', body: { count } })); } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
+
+  const cost = info?.cost ?? 0;
+  const coins = profile?.coins ?? 0;
+  const Btn = ({ x, count, label }) => (
+    <Box x={x} y={880} w={430} h={230}>
+      <button onClick={() => pull(count)} disabled={!info || busy || coins < cost * count}
+        className="w-full h-full rounded-2xl flex flex-col items-center justify-center text-white disabled:opacity-45"
+        style={{ background: 'linear-gradient(180deg,#1b3b78,#0e2147)', border: '4px solid #e0b64f', boxShadow: '0 0 28px rgba(255,214,120,.35)' }}>
+        <span style={{ fontSize: fs(52), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 6px #000' }}>{label}</span>
+        <span className="mt-[1.5cqw]"><Coin n={cost * count} size={38} className="text-amber-200" /></span>
+      </button>
+    </Box>
+  );
+
+  return (
+    <>
+      <Stage bg="/ui/gacha.jpg">
+        <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
+
+        <Box x={110} y={330} w={804} h={440} className="rounded-2xl flex flex-col items-center justify-center text-center" style={panel}>
+          <p style={{ fontSize: fs(58), fontWeight: 900, color: '#fff4d2', textShadow: '0 3px 8px #000' }}>魔法のガチャ</p>
+          <div className="relative my-[2cqw]" style={{ width: '24cqw', height: '24cqw' }}>
+            <div className="absolute inset-0 rounded-full" style={{ border: '3px dashed #e0b64f', animation: 'spin 14s linear infinite' }} />
+            <img src="/ui/sand.png" alt="" className="absolute inset-[14%] w-[72%] h-[72%] object-contain" draggable={false} />
+          </div>
+          <p style={{ fontSize: fs(25), color: '#c9d6f2' }}>アイコン・フレーム・バナー・魔法の砂が手に入る！</p>
+          <button onClick={() => setRates(true)} disabled={!info} className="mt-[1.6cqw] underline text-sky-300" style={{ fontSize: fs(24) }}>提供割合を見る</button>
+        </Box>
+
+        <Btn x={70} count={1} label="1回引く" />
+        <Btn x={524} count={10} label="10回引く" />
+        {msg && <Box x={70} y={1125} w={884} h={50} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{msg}</Box>}
+        {info && coins < cost && <Box x={70} y={1170} w={884} h={46} className="text-center" style={{ fontSize: fs(22), color: '#fde68a', textShadow: '0 1px 4px #000' }}>コインはミッションやメールで手に入ります</Box>}
+
+        <NavHot go={go} y={1322} h={150} />
+        <NavDots summary={summary} y={1332} Dot={Dot} />
+      </Stage>
+      <AccountMenu open={menu} onClose={() => setMenu(false)} anchor="left" profile={profile} go={go} onLogout={onLogout} />
+      {result && <Results data={result} onClose={() => setResult(null)} />}
+      {rates && info && <RatesModal info={info} onClose={() => setRates(false)} />}
+    </>
+  );
+}

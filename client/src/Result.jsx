@@ -16,7 +16,7 @@ export default function Result({ g, user }) {
           <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-900' : 'bg-[#171a20]'}`}>
             <div className="flex justify-between items-center">
               <span className="font-bold flex items-center gap-2 min-w-0">
-                <Avatar iconId={r.iconId} size={36} />
+                <Avatar iconId={r.iconId} frameId={r.frameId} size={36} />
                 <span className="truncate">{r.place}位　{r.name}</span>
               </span>
               <span className={`text-xl font-extrabold ${r.delta > 0 ? 'text-emerald-400' : r.delta < 0 ? 'text-red-400' : ''}`}>
@@ -39,7 +39,7 @@ export default function Result({ g, user }) {
       <button onClick={goHome} className="w-full py-4 rounded-2xl bg-emerald-500 text-xl font-bold">ホームに戻る</button>
       {report && (
         <ReportModal user={user} roomId={result.roomId} initialUid={report}
-          players={result.results.filter((r) => r.uid !== myUid).map((r) => ({ uid: r.uid, name: r.name, iconId: r.iconId }))}
+          players={result.results.filter((r) => r.uid !== myUid).map((r) => ({ uid: r.uid, name: r.name, iconId: r.iconId, frameId: r.frameId }))}
           onClose={() => setReport(null)} />
       )}
     </div>

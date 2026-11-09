@@ -46,7 +46,7 @@ export default function Game({ g, user }) {
     <>
       <Stage bg="/ui/arena.jpg">
         {/* 自分（左上） */}
-        <Box x={26} y={31} w={112} h={112}><Avatar iconId={me?.iconId} size={0} /></Box>
+        <Box x={26} y={31} w={112} h={112}><Avatar iconId={me?.iconId} frameId={me?.frameId} size={0} /></Box>
         <Box x={165} y={44} w={230} h={40} className="flex items-center truncate" style={{ fontSize: fs(25), fontWeight: 700 }}>{me?.name}</Box>
         <Box x={165} y={97} w={205} h={28} className="flex items-center" style={{ fontSize: fs(20), color: '#cbd5e1' }}>
           {profile?.rank?.label}　{profile?.isMaster ? `${profile.mr}MR` : `${profile?.pt}pt`}
@@ -66,7 +66,7 @@ export default function Game({ g, user }) {
           const mark = finished ? (res?.correct ? ['✔', 'bg-emerald-500'] : [res?.choice === null ? '–' : '✖', res?.choice === null ? 'bg-slate-500' : 'bg-red-500']) : done ? ['✔', 'bg-sky-500'] : null;
           return (
             <div key={p.uid}>
-              <Box x={cx - 58} y={250} w={116} h={116}><Avatar iconId={p.iconId} size={0} /></Box>
+              <Box x={cx - 58} y={250} w={116} h={116}><Avatar iconId={p.iconId} frameId={p.frameId} size={0} /></Box>
               {mark && (
                 <Box x={cx + 20} y={326} w={44} h={44} className={`rounded-full grid place-items-center font-bold ring-2 ring-white ${mark[1]}`} style={{ fontSize: fs(26) }}>{mark[0]}</Box>
               )}

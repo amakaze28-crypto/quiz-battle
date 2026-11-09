@@ -39,15 +39,19 @@ export async function verifyToken(token) {
 // ---------- users ----------
 const defaults = (uid, name, photoURL, email) => ({
   uid, displayName: name, photoURL, email, pt: 0, mr: null, isMaster: false, wins: 0, losses: 0, games: 0, banned: false,
-  coins: 0, iconId: 'default', ownedIcons: ['default'], nameChanges: 0, joinedAt: Date.now(),
-  friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastNoticeSeen: 0, lastLoginAt: 0, lastSeenAt: 0,
+  coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: ['default'], nameChanges: 0, joinedAt: Date.now(),
+  friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastLoginAt: 0, lastSeenAt: 0,
 });
 
-const FILL = { coins: 0, iconId: 'default', ownedIcons: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastNoticeSeen: 0, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0 };
+const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0 };
 function norm(u) {
   const o = { ...u };
   for (const [k, v] of Object.entries(FILL)) {
     if (o[k] === undefined) o[k] = Array.isArray(v) ? [...v] : (v && typeof v === 'object' ? { ...v } : v);
+  }
+  if (Array.isArray(o.ownedIcons)) { // 旧データ(ownedIcons)からの移行
+    o.ownedItems = [...new Set([...o.ownedItems, ...o.ownedIcons])];
+    delete o.ownedIcons;
   }
   return o;
 }
@@ -179,7 +183,7 @@ export async function deleteQuestion(id) {
   else memQ.delete(id);
 }
 
-// ---------- 汎用コレクション (mails / notices / icons / reports / settings) ----------
+// ---------- 汎用コレクション (mails / items / reports / settings) ----------
 const memCols = new Map();
 const memCol = (n) => { if (!memCols.has(n)) memCols.set(n, new Map()); return memCols.get(n); };
 

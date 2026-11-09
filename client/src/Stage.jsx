@@ -31,3 +31,30 @@ export function Hot({ x, y, w, h, onClick, label }) {
     </Box>
   );
 }
+
+export const NAV_KEYS = ['home', 'shop', 'missions', 'friends', 'gacha'];
+
+// 下部ナビ（背景画像に描かれているボタンの上に透明なボタンを重ねる）
+export function NavHot({ go, y = 1345, h = 160 }) {
+  return NAV_KEYS.map((k, i) => <Hot key={k} x={i * 205} y={y} w={205} h={h} label={k} onClick={() => go(k)} />);
+}
+
+// ナビの赤い通知（背景画像に描かれていたものは消してあるので、必要なときだけ重ねる）
+export function NavDots({ summary, y, Dot }) {
+  return (
+    <>
+      {summary?.mission > 0 && <Box x={545} y={y} w={22} h={22}><Dot className="w-full h-full" /></Box>}
+      {summary?.friend > 0 && <Box x={745} y={y} w={22} h={22}><Dot className="w-full h-full" /></Box>}
+    </>
+  );
+}
+
+// 子画面共通：左上の「＜」とホームボタン
+export function BackHome({ go, homeX = 922 }) {
+  return (
+    <>
+      <Hot x={0} y={12} w={120} h={90} label="戻る" onClick={() => go('home')} />
+      <Hot x={homeX} y={20} w={86} h={78} label="ホーム" onClick={() => go('home')} />
+    </>
+  );
+}

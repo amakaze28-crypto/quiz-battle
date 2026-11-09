@@ -21,7 +21,7 @@ export class Room {
     this.timers = new Set();
     this.cur = null;
     this.players = entries.map((e) => ({
-      uid: e.uid, name: e.name, iconId: e.iconId, socket: e.socket,
+      uid: e.uid, name: e.name, iconId: e.iconId, frameId: e.frameId, bannerId: e.bannerId, socket: e.socket,
       rating: e.rating, rankLabel: e.rankLabel, rankKey: e.rankKey, rankSub: e.rankSub,
       score: 0, secondaries: 0, times: [], connected: true,
     }));
@@ -44,7 +44,7 @@ export class Room {
       roomId: this.id,
       total: this.questions.length,
       countdownMs: cfg.countdownMs,
-      players: this.players.map((p) => ({ uid: p.uid, name: p.name, iconId: p.iconId, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
+      players: this.players.map((p) => ({ uid: p.uid, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
     });
     this.after(cfg.countdownMs, () => this.startQuestion(0));
   }
@@ -172,7 +172,7 @@ export class Room {
       roomId: this.id,
       total: this.questions.length,
       results: sorted.map((p) => ({
-        uid: p.uid, name: p.name, iconId: p.iconId, score: p.score, secondaries: p.secondaries,
+        uid: p.uid, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, score: p.score, secondaries: p.secondaries,
         avgTime: Math.round(p.avgTime * 100) / 100, place: p.place, delta: p.delta,
         rank: infoOf(p).label, rankKey: infoOf(p).key, rankSub: infoOf(p).sub,
         pt: p.profile?.pt ?? null, mr: p.profile?.mr ?? null,

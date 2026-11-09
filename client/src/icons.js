@@ -1,7 +1,18 @@
 import { SERVER_URL } from './api';
 
-// 初期アイコンは同梱画像、ショップのアイコンはサーバーから配信
-export const iconSrc = (id) => (!id || id === 'default' ? '/icons/default.png' : `${SERVER_URL}/icon/${id}`);
+// 初期アイコンは同梱画像、それ以外(アイコン・フレーム・バナー)はサーバーから配信
+export const itemSrc = (id) => `${SERVER_URL}/item/${id}`;
+export const iconSrc = (id) => (!id || id === 'default' ? '/icons/default.png' : itemSrc(id));
+
+export const RARITY = {
+  common: { label: 'コモン', color: '#9ca3af' },
+  uncommon: { label: 'アンコモン', color: '#4ade80' },
+  rare: { label: 'レア', color: '#60a5fa' },
+  epic: { label: 'エピック', color: '#c084fc' },
+  legendary: { label: 'レジェンダリー', color: '#fbbf24' },
+};
+export const RARITIES = Object.keys(RARITY);
+export const TYPE_LABEL = { icon: 'アイコン', frame: 'フレーム', banner: 'バナー' };
 
 export function ago(ts) {
   if (!ts) return 'なし';

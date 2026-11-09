@@ -12,7 +12,7 @@ export default function Layout({ profile, view, go, summary, onLogout, children,
           早押しクイズバトル{view === 'admin' && <span className="ml-2 text-xs rounded bg-amber-500 text-black px-2 py-0.5 align-middle">管理者</span>}
         </button>
         <button onClick={() => setMenu((m) => !m)} aria-label="メニュー" className="rounded-full ring-2 ring-white/20">
-          <Avatar iconId={profile?.iconId} size={40} />
+          <Avatar iconId={profile?.iconId} frameId={profile?.frameId} size={40} />
         </button>
       </header>
       <AccountMenu open={menu} onClose={() => setMenu(false)} anchor="right" profile={profile} adminView={view === 'admin'} go={go} onLogout={onLogout} />

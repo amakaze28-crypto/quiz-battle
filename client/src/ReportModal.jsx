@@ -32,7 +32,7 @@ export default function ReportModal({ user, roomId, players, initialUid, onClose
           {players.map((p) => (
             <label key={p.uid} className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer ${target === p.uid ? 'bg-sky-800' : 'bg-[#0e1013]'}`}>
               <input type="radio" name="target" checked={target === p.uid} onChange={() => setTarget(p.uid)} />
-              <Avatar iconId={p.iconId} size={28} /><span className="truncate">{p.name}</span>
+              <Avatar iconId={p.iconId} frameId={p.frameId} size={28} /><span className="truncate">{p.name}</span>
             </label>
           ))}
         </div>

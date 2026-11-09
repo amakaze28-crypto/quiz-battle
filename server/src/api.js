@@ -2,9 +2,9 @@ import express from 'express';
 import * as store from './store.js';
 import * as missions from './missions.js';
 import * as presence from './presence.js';
-import { settings } from './settings.js';
+import { settings, RARITIES } from './settings.js';
 import { profilePayload } from './profile.js';
-import { rankInfo } from './rank.js';
+import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
 
@@ -28,6 +28,21 @@ export function mountApi(app) {
     }
   });
 
+  // 同じユーザーのPOSTは順番に処理する（コイン・砂の二重消費を防ぐ）
+  const chains = new Map();
+  r.use((req, res, next) => {
+    if (req.method !== 'POST') return next();
+    const uid = req.me.uid;
+    const prev = chains.get(uid) || Promise.resolve();
+    let release;
+    const cur = new Promise((ok) => { release = ok; });
+    const tail = prev.then(() => cur);
+    chains.set(uid, tail);
+    const done = () => { release(); if (chains.get(uid) === tail) chains.delete(uid); };
+    res.on('finish', done); res.on('close', done);
+    prev.then(next);
+  });
+
   const wrap = (fn) => async (req, res) => {
     try { await fn(req, res); } catch (e) { console.error('[api]', e); res.status(500).json({ error: 'サーバーエラー' }); }
   };
@@ -40,16 +55,14 @@ export function mountApi(app) {
     .sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
   const mailView = (m, u) => {
     const st = u.mailState[m.id] || {};
-    return { id: m.id, title: m.title, body: m.body, coins: m.coins || 0, createdAt: m.createdAt, read: !!st.read, claimed: !!st.claimed };
+    return { id: m.id, title: m.title, body: m.body, coins: m.coins || 0, sand: m.sand || 0, createdAt: m.createdAt, read: !!st.read, claimed: !!st.claimed };
   };
 
   r.get('/summary', wrap(async (req, res) => {
     const u = await fresh(req);
     const mails = await visibleMails(u);
-    const notices = await store.colList('notices');
     res.json({
-      mail: mails.filter((m) => { const s = u.mailState[m.id] || {}; return !s.read || ((m.coins || 0) > 0 && !s.claimed); }).length,
-      notice: notices.filter((n) => n.createdAt > Math.max(u.lastNoticeSeen || 0, u.joinedAt || 0)).length,
+      mail: mails.filter((m) => { const s = u.mailState[m.id] || {}; return !s.read || (((m.coins || 0) > 0 || (m.sand || 0) > 0) && !s.claimed); }).length,
       mission: missions.view(u).filter((m) => m.done && !m.claimed).length,
       friend: u.incoming.length,
     });
@@ -69,7 +82,8 @@ export function mountApi(app) {
     const st = u.mailState[m.id] || {};
     if (st.claimed) return res.status(400).json({ error: 'すでに受け取り済みです' });
     const coins = u.coins + (m.coins || 0);
-    await store.updateUser(u.uid, { coins, mailState: { ...u.mailState, [m.id]: { read: true, claimed: true } } });
+    const sand = u.sand + (m.sand || 0);
+    await store.updateUser(u.uid, { coins, sand, mailState: { ...u.mailState, [m.id]: { read: true, claimed: true } } });
     res.json(withProfile(req, await fresh(req)));
   }));
 
@@ -77,19 +91,6 @@ export function mountApi(app) {
     const u = await fresh(req);
     const st = u.mailState[req.params.id] || {};
     if (!st.read) await store.updateUser(u.uid, { mailState: { ...u.mailState, [req.params.id]: { ...st, read: true } } });
-    res.json({ ok: true });
-  }));
-
-  // ---- お知らせ ----
-  r.get('/notices', wrap(async (req, res) => {
-    const u = await fresh(req);
-    const seen = Math.max(u.lastNoticeSeen || 0, u.joinedAt || 0);
-    const list = (await store.colList('notices')).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
-    res.json({ notices: list.map((n) => ({ id: n.id, title: n.title, body: n.body, createdAt: n.createdAt, unread: n.createdAt > seen })) });
-  }));
-
-  r.post('/notices/seen', wrap(async (req, res) => {
-    await store.updateUser(req.me.uid, { lastNoticeSeen: Date.now() });
     res.json({ ok: true });
   }));
 
@@ -110,8 +111,8 @@ export function mountApi(app) {
 
   // ---- フレンド ----
   const friendView = (f) => ({
-    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default',
-    rank: rankInfo(f, getEmperorSet()), online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
+    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none',
+    rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
 
@@ -168,34 +169,131 @@ export function mountApi(app) {
     res.json(await friendsPayload(await fresh(req)));
   }));
 
-  // ---- ショップ / アイコン ----
+  r.post('/friends/removeAll', wrap(async (req, res) => {
+    const me = await fresh(req);
+    for (const id of me.friends) {
+      const o = await store.getUser(id);
+      if (o) await store.updateUser(o.uid, { friends: pull(o.friends, me.uid) });
+    }
+    await store.updateUser(me.uid, { friends: [] });
+    res.json(await friendsPayload(await fresh(req)));
+  }));
+
+  // ---- ショップ / ガチャ / 装備 ----
+  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, inGacha: !!i.inGacha });
+  const SLOTS = { icon: 'iconId', frame: 'frameId', banner: 'bannerId' };
+  const RANK = Object.fromEntries(RARITIES.map((x, i) => [x, i]));
+  const rarityOf = (i) => (RARITIES.includes(i.rarity) ? i.rarity : 'common');
+
   r.get('/shop', wrap(async (req, res) => {
     const u = await fresh(req);
-    const all = await store.colList('icons');
-    const icons = all
-      .filter((i) => i.onSale || u.ownedIcons.includes(i.id))
-      .sort((a, b) => (a.price - b.price) || (a.createdAt - b.createdAt))
-      .map((i) => ({ id: i.id, name: i.name, price: i.price, owned: u.ownedIcons.includes(i.id), onSale: !!i.onSale }));
-    icons.unshift({ id: 'default', name: '初期アイコン', price: 0, owned: true, onSale: false });
-    res.json({ coins: u.coins, equipped: u.iconId, icons });
+    const all = await store.colList('items');
+    const items = all
+      .filter((i) => i.onShop || u.ownedItems.includes(i.id))
+      .sort((a, b) => (RANK[rarityOf(a)] - RANK[rarityOf(b)]) || (a.price - b.price) || (a.createdAt - b.createdAt))
+      .map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) }));
+    items.unshift({ id: 'default', name: '初期アイコン', type: 'icon', rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
+    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, banner: u.bannerId }, items });
   }));
 
   r.post('/shop/buy', wrap(async (req, res) => {
     const u = await fresh(req);
-    const icon = await store.colGet('icons', String(req.body.iconId || ''));
-    if (!icon || !icon.onSale) return res.status(404).json({ error: 'このアイコンは購入できません' });
-    if (u.ownedIcons.includes(icon.id)) return res.status(400).json({ error: 'すでに持っています' });
-    if (u.coins < icon.price) return res.status(400).json({ error: 'コインが足りません' });
-    await store.updateUser(u.uid, { coins: u.coins - icon.price, ownedIcons: [...u.ownedIcons, icon.id] });
+    const item = await store.colGet('items', String(req.body.itemId || ''));
+    if (!item || !item.onShop) return res.status(404).json({ error: 'この商品は購入できません' });
+    if (u.ownedItems.includes(item.id)) return res.status(400).json({ error: 'すでに持っています' });
+    if (u.sand < item.price) return res.status(400).json({ error: '魔法の砂が足りません' });
+    await store.updateUser(u.uid, { sand: u.sand - item.price, ownedItems: [...u.ownedItems, item.id] });
     res.json(withProfile(req, await fresh(req)));
   }));
 
-  r.post('/icon/equip', wrap(async (req, res) => {
+  r.post('/equip', wrap(async (req, res) => {
     const u = await fresh(req);
-    const id = String(req.body.iconId || '');
-    if (!u.ownedIcons.includes(id)) return res.status(400).json({ error: '未所持のアイコンです' });
-    await store.updateUser(u.uid, { iconId: id });
+    const slot = String(req.body.slot || '');
+    const id = String(req.body.itemId || '');
+    if (!SLOTS[slot]) return res.status(400).json({ error: '不正なリクエストです' });
+    if (id === 'none') {
+      if (slot === 'icon') return res.status(400).json({ error: 'アイコンは外せません' });
+    } else {
+      if (!u.ownedItems.includes(id)) return res.status(400).json({ error: '未所持のアイテムです' });
+      if (id !== 'default') {
+        const item = await store.colGet('items', id);
+        if (!item || item.type !== slot) return res.status(400).json({ error: '装備できません' });
+      } else if (slot !== 'icon') return res.status(400).json({ error: '装備できません' });
+    }
+    await store.updateUser(u.uid, { [SLOTS[slot]]: id });
     res.json(withProfile(req, await fresh(req)));
+  }));
+
+  // ---- ガチャ ----
+  const wpick = (entries) => {
+    const total = entries.reduce((s, [, w]) => s + w, 0);
+    if (total <= 0) return null;
+    let x = Math.random() * total;
+    for (const [k, w] of entries) { x -= w; if (x < 0) return k; }
+    return entries[entries.length - 1][0];
+  };
+  const gachaPool = async () => (await store.colList('items')).filter((i) => i.inGacha && RARITIES.includes(i.rarity));
+
+  // 提供割合（表示用）。出るアイテムがいないレア度は除いて按分し直す
+  function rates(g, pool) {
+    const tw = g.typeWeights;
+    const availR = RARITIES.filter((x) => g.itemRarityWeights[x] > 0 && pool.some((i) => i.rarity === x));
+    const itemOn = availR.length > 0 && tw.item > 0;
+    const sandOn = tw.sand > 0 || !itemOn;
+    const tItem = itemOn ? tw.item : 0;
+    const tSand = sandOn ? (itemOn ? tw.sand : 1) : 0;
+    const tot = tItem + tSand || 1;
+    const iw = availR.reduce((s, x) => s + g.itemRarityWeights[x], 0) || 1;
+    const sw = RARITIES.reduce((s, x) => s + g.sandRarityWeights[x], 0) || 1;
+    const pct = (v) => Math.round(v * 10000) / 100;
+    return {
+      item: pct(tItem / tot), sand: pct(tSand / tot),
+      itemRarity: Object.fromEntries(RARITIES.map((x) => [x, availR.includes(x) ? pct((tItem / tot) * (g.itemRarityWeights[x] / iw)) : 0])),
+      sandRarity: Object.fromEntries(RARITIES.map((x) => [x, pct((tSand / tot) * (g.sandRarityWeights[x] / sw))])),
+    };
+  }
+
+  r.get('/gacha/info', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const g = settings().gacha;
+    const pool = await gachaPool();
+    res.json({
+      coins: u.coins, sand: u.sand, cost: g.cost, rates: rates(g, pool), sandAmounts: g.sandAmounts, dupSand: g.dupSand,
+      pool: pool.sort((a, b) => RANK[a.rarity] - RANK[b.rarity]).map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) })),
+    });
+  }));
+
+  r.post('/gacha/pull', wrap(async (req, res) => {
+    const count = Number(req.body.count) === 10 ? 10 : 1;
+    const u = await fresh(req);
+    const g = settings().gacha;
+    const total = g.cost * count;
+    if (u.coins < total) return res.status(400).json({ error: `コインが足りません（${total}コイン必要）` });
+    const pool = await gachaPool();
+    const rt = rates(g, pool);
+    const owned = new Set(u.ownedItems);
+    let sandGain = 0;
+    const results = [];
+    for (let n = 0; n < count; n++) {
+      const kind = wpick([['item', rt.item], ['sand', rt.sand]]) || 'sand';
+      if (kind === 'item') {
+        const rar = wpick(RARITIES.map((x) => [x, rt.itemRarity[x]]));
+        const cand = pool.filter((i) => i.rarity === rar);
+        const it = cand[Math.floor(Math.random() * cand.length)];
+        const dup = owned.has(it.id);
+        const sand = dup ? g.dupSand[it.rarity] : 0;
+        owned.add(it.id);
+        sandGain += sand;
+        results.push({ kind: 'item', item: meta(it), duplicate: dup, sand });
+      } else {
+        const rar = wpick(RARITIES.map((x) => [x, rt.sandRarity[x]])) || 'common';
+        const sand = g.sandAmounts[rar];
+        sandGain += sand;
+        results.push({ kind: 'sand', rarity: rar, sand });
+      }
+    }
+    await store.updateUser(u.uid, { coins: u.coins - total, sand: u.sand + sandGain, ownedItems: [...owned] });
+    res.json(withProfile(req, await fresh(req), { results, sandGain }));
   }));
 
   // ---- 改名（1回目は無料、2回目以降はコイン） ----
@@ -233,11 +331,11 @@ export function mountApi(app) {
 
   app.use('/api', r);
 
-  // アイコン画像の配信（認証不要・不変URL）
-  app.get('/icon/:id', async (req, res) => {
+  // アイテム画像（アイコン・フレーム・バナー）の配信（認証不要・不変URL）
+  app.get('/item/:id', async (req, res) => {
     try {
-      const icon = await store.colGet('icons', req.params.id);
-      const m = icon?.image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+      const it = await store.colGet('items', req.params.id);
+      const m = it?.image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
       if (!m) return res.status(404).end();
       res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable').send(Buffer.from(m[2], 'base64'));
     } catch { res.status(500).end(); }

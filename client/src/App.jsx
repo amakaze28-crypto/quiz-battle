@@ -11,7 +11,12 @@ import Result from './Result';
 import Profile from './Profile';
 import Settings from './Settings';
 import Admin from './Admin';
-import { Shop, Missions, Friends, Notices, Mails } from './Pages';
+import { Mails } from './Pages';
+import Shop from './Shop';
+import Missions from './Missions';
+import Friends from './Friends';
+import Gacha from './Gacha';
+import Title from './Title';
 import RankBadge from './RankBadge';
 import { Avatar } from './Parts';
 
@@ -55,7 +60,7 @@ function Authed({ user }) {
         <ul className="space-y-2 mb-4">
           {g.match.players.map((p) => (
             <li key={p.uid} className="flex items-center gap-3 justify-center">
-              <Avatar iconId={p.iconId} size={36} />
+              <Avatar iconId={p.iconId} frameId={p.frameId} size={36} />
               <RankBadge rank={{ key: p.rankKey, sub: p.rankSub, label: p.rank }} size={36} showSub={false} />
               <span>{p.name}（{p.rank}）</span>
             </li>
@@ -72,15 +77,16 @@ function Authed({ user }) {
     return <Center>読み込み中…{g.conn !== 'online' && <p className="text-sm text-slate-400 mt-2">サーバーに接続中（無料枠は起動に時間がかかることがあります）</p>}</Center>;
   }
 
+  const common = { user, go: setView, summary, refresh };
   if (view === 'home') return <Home g={g} summary={summary} go={setView} onLogout={logout} />;
+  if (view === 'shop') return <Shop {...common} profile={g.profile} call={call} />;
+  if (view === 'missions') return <Missions {...common} call={call} />;
+  if (view === 'friends') return <Friends {...common} />;
+  if (view === 'gacha') return <Gacha {...common} g={g} call={call} onLogout={logout} />;
 
   const body = {
     profile: <Profile profile={g.profile} />,
     settings: <Settings profile={g.profile} call={call} />,
-    shop: <Shop user={user} profile={g.profile} call={call} onChange={refresh} />,
-    missions: <Missions user={user} profile={g.profile} call={call} onChange={refresh} />,
-    friends: <Friends user={user} onChange={refresh} />,
-    notices: <Notices user={user} onChange={refresh} />,
     mail: <Mails user={user} call={call} onChange={refresh} />,
     admin: g.profile?.isAdmin ? <Admin user={user} /> : null,
   }[view];
@@ -94,18 +100,24 @@ function Authed({ user }) {
 
 export default function App() {
   const [user, setUser] = useState(undefined);
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  const [started, setStarted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); if (!u) setStarted(false); }), []);
+
+  const login = async () => {
+    setBusy(true); setError('');
+    try { await signInWithPopup(auth, provider); return true; } catch (e) {
+      if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') setError('ログインに失敗しました。もう一度お試しください');
+      return false;
+    } finally { setBusy(false); }
+  };
+  const start = async () => {
+    if (busy) return;
+    if (user || (await login())) setStarted(true);
+  };
 
   if (user === undefined) return <Center>読み込み中...</Center>;
-  if (!user) {
-    return (
-      <Center>
-        <h1 className="text-3xl font-bold mb-6">早押しクイズバトル</h1>
-        <button onClick={() => signInWithPopup(auth, provider)} className="px-6 py-3 rounded-xl bg-white text-slate-900 font-bold">
-          Googleでログイン
-        </button>
-      </Center>
-    );
-  }
+  if (!started || !user) return <Title user={user} onStart={start} onLogin={async () => { if (await login()) setStarted(true); }} onLogout={() => signOut(auth)} busy={busy} error={error} />;
   return <Authed user={user} />;
 }

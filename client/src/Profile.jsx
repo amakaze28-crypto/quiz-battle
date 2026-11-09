@@ -1,5 +1,5 @@
 import RankBadge from './RankBadge';
-import { Avatar, Coin } from './Parts';
+import { Avatar, Banner, Coin, Sand } from './Parts';
 
 export default function Profile({ profile }) {
   if (!profile) return <p>読み込み中…</p>;
@@ -10,13 +10,14 @@ export default function Profile({ profile }) {
   return (
     <div className="text-center">
       <h1 className="text-xl font-bold mb-4">プロフィール</h1>
-      <div className="flex justify-center items-end gap-4">
+      {profile.bannerId !== 'none' && <Banner bannerId={profile.bannerId} className="w-full rounded-xl mb-4" style={{ aspectRatio: '4 / 1' }} />}
+      <div className="flex justify-center items-end gap-6">
         <RankBadge rank={r} size={150} />
-        <Avatar iconId={profile.iconId} size={72} className="ring-2 ring-white/30" />
+        <Avatar iconId={profile.iconId} frameId={profile.frameId} size={76} className="ring-2 ring-white/30" />
       </div>
       <p className="mt-2 text-3xl font-extrabold">{r.label}</p>
       <p className="text-slate-300">{profile.displayName}</p>
-      <p className="mb-4"><Coin n={profile.coins} size={20} className="text-amber-300" /></p>
+      <p className="mb-4 flex justify-center gap-5"><Coin n={profile.coins} size={20} className="text-amber-300" /><Sand n={profile.sand} size={22} className="text-amber-300" /></p>
 
       <div className="rounded-2xl bg-[#171a20] p-5 text-left">
         {profile.isMaster ? (

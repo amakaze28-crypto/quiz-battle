@@ -5,7 +5,7 @@ const ITEMS = [
   { key: 'shop', label: 'ショップ', icon: '🛒' },
   { key: 'missions', label: 'ミッション', icon: '📋', badge: 'mission' },
   { key: 'friends', label: 'フレンド', icon: '👥', badge: 'friend' },
-  { key: 'notices', label: 'お知らせ', icon: '🔖', badge: 'notice' },
+  { key: 'gacha', label: 'ガチャ', icon: '✨' },
 ];
 
 export default function BottomNav({ view, go, summary }) {
