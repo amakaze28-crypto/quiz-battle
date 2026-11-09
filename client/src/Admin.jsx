@@ -1,0 +1,240 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { adminApi } from './api';
+import RankBadge from './RankBadge';
+
+const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
+const btn = 'px-3 py-1.5 rounded-lg text-sm';
+
+export default function Admin({ user }) {
+  const [tab, setTab] = useState('questions');
+  return (
+    <div>
+      <div className="flex gap-2 mb-5">
+        {[['questions', '問題管理'], ['players', 'プレイヤー']].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} className={`${btn} ${tab === k ? 'bg-sky-600 font-bold' : 'bg-[#171a20]'}`}>{label}</button>
+        ))}
+      </div>
+      {tab === 'questions' ? <Questions user={user} /> : <Players user={user} />}
+    </div>
+  );
+}
+
+/* ---------------- 問題管理 ---------------- */
+function Questions({ user }) {
+  const [list, setList] = useState([]);
+  const [filter, setFilter] = useState('all'); // all | published | draft
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState(null); // null | 'new' | question
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try { setList((await adminApi(user, '/questions')).questions); setError(''); } catch (e) { setError(e.message); }
+  }, [user]);
+  useEffect(() => { load(); }, [load]);
+
+  const shown = useMemo(() => list.filter((q) =>
+    (filter === 'all' || (filter === 'published') === !!q.published)
+    && (!search || q.question.includes(search) || q.choices.some((c) => c.includes(search)))), [list, filter, search]);
+  const publishedCount = list.filter((q) => q.published).length;
+
+  const act = async (fn) => { try { await fn(); await load(); } catch (e) { alert(e.message); } };
+  const toggle = (q) => act(() => adminApi(user, `/questions/${q.id}/publish`, { method: 'POST', body: { published: !q.published } }));
+  const remove = (q) => { if (window.confirm(`この問題を削除しますか？\n\n${q.question}`)) act(() => adminApi(user, `/questions/${q.id}`, { method: 'DELETE' })); };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <button onClick={() => setEditing('new')} className={`${btn} bg-emerald-500 font-bold`}>＋ 問題を追加</button>
+        <button onClick={() => setImporting(true)} className={`${btn} bg-sky-600`}>JSON取り込み</button>
+        <span className="text-sm text-slate-400 ml-auto">公開中 {publishedCount} / 全 {list.length} 問</span>
+      </div>
+      {publishedCount < 10 && <p className="mb-3 text-sm text-amber-400">公開中の問題が10問未満です（試合は公開中の全問で行われます）。</p>}
+      <div className="flex gap-2 mb-4">
+        <input className={input} placeholder="問題文・選択肢を検索" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select className={`${input} w-32`} value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <option value="all">すべて</option><option value="published">公開</option><option value="draft">非公開</option>
+        </select>
+      </div>
+      {error && <p className="text-red-400 mb-3">{error}</p>}
+
+      <ul className="space-y-2">
+        {shown.map((q) => (
+          <li key={q.id} className="rounded-xl bg-[#171a20] p-4">
+            <div className="flex items-start gap-3">
+              <span className={`shrink-0 text-xs rounded px-2 py-0.5 ${q.published ? 'bg-emerald-600' : 'bg-slate-600'}`}>{q.published ? '公開' : '非公開'}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{q.question}</p>
+                <p className="text-sm text-slate-400 mt-1">
+                  {q.choices.map((c, i) => <span key={i} className={i === q.answer ? 'text-emerald-400 font-bold mr-3' : 'mr-3'}>{'ABCD'[i]}. {c}</span>)}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3 justify-end">
+              <button onClick={() => toggle(q)} className={`${btn} bg-slate-700`}>{q.published ? '非公開にする' : '公開する'}</button>
+              <button onClick={() => setEditing(q)} className={`${btn} bg-slate-700`}>編集</button>
+              <button onClick={() => remove(q)} className={`${btn} bg-red-600/80`}>削除</button>
+            </div>
+          </li>
+        ))}
+        {shown.length === 0 && <li className="text-slate-400 text-center py-8">問題がありません</li>}
+      </ul>
+
+      {editing && <QuestionForm user={user} q={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {importing && <ImportModal user={user} onClose={() => setImporting(false)} onDone={load} />}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center p-4 overflow-y-auto">
+      <div className="w-full max-w-lg rounded-2xl bg-[#1b1f27] p-5 my-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-lg">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 text-xl leading-none">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function QuestionForm({ user, q, onClose, onSaved }) {
+  const [question, setQuestion] = useState(q?.question || '');
+  const [choices, setChoices] = useState(q?.choices || ['', '', '', '']);
+  const [answer, setAnswer] = useState(q?.answer ?? 0);
+  const [explanation, setExplanation] = useState(q?.explanation || '');
+  const [published, setPublished] = useState(q?.published ?? false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    try {
+      const body = { question, choices, answer, explanation, published };
+      if (q) await adminApi(user, `/questions/${q.id}`, { method: 'PUT', body });
+      else await adminApi(user, '/questions', { method: 'POST', body });
+      onSaved();
+    } catch (e) { setErr(e.message); }
+  };
+
+  return (
+    <Modal title={q ? '問題を編集' : '問題を追加'} onClose={onClose}>
+      <label className="text-sm text-slate-400">問題文</label>
+      <textarea className={`${input} mb-3`} rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} />
+      <label className="text-sm text-slate-400">選択肢（正解にチェック）</label>
+      {choices.map((c, i) => (
+        <div key={i} className="flex items-center gap-2 mt-2">
+          <input type="radio" name="answer" checked={answer === i} onChange={() => setAnswer(i)} />
+          <span className="w-4">{'ABCD'[i]}</span>
+          <input className={input} value={c} onChange={(e) => setChoices(choices.map((x, j) => (j === i ? e.target.value : x)))} />
+        </div>
+      ))}
+      <label className="text-sm text-slate-400 block mt-3">解説（任意）</label>
+      <textarea className={`${input} mb-3`} rows={2} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+      <label className="flex items-center gap-2 mb-3"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />公開する</label>
+      {err && <p className="text-red-400 text-sm mb-2">{err}</p>}
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className={`${btn} bg-slate-700`}>キャンセル</button>
+        <button onClick={save} className={`${btn} bg-emerald-500 font-bold`}>保存</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ImportModal({ user, onClose, onDone }) {
+  const [text, setText] = useState('');
+  const [published, setPublished] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const onFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (f) setText(await f.text());
+  };
+
+  const run = async () => {
+    let data;
+    try { data = JSON.parse(text); } catch { return setMsg({ ok: false, text: 'JSONとして読み込めません' }); }
+    const questions = Array.isArray(data) ? data : data.questions;
+    if (!Array.isArray(questions)) return setMsg({ ok: false, text: '配列（または {"questions":[...]}）で指定してください' });
+    try {
+      const r = await adminApi(user, '/questions/import', { method: 'POST', body: { questions, published } });
+      setMsg({
+        ok: true,
+        text: `${r.imported}件を取り込みました（重複スキップ ${r.skipped}件 / エラー ${r.errors.length}件）`,
+        errors: r.errors,
+      });
+      onDone();
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
+
+  return (
+    <Modal title="JSON取り込み" onClose={onClose}>
+      <p className="text-xs text-slate-400 mb-2">形式: <code>[{'{'}"question":"…","choices":["A","B","C","D"],"answer":0,"explanation":"任意"{'}'}]</code>（answerは0始まり）。同じ問題文は重複としてスキップされます。</p>
+      <input type="file" accept=".json,application/json" onChange={onFile} className="mb-2 text-sm" />
+      <textarea className={`${input} font-mono text-xs mb-3`} rows={8} placeholder="ここにJSONを貼り付け、またはファイルを選択" value={text} onChange={(e) => setText(e.target.value)} />
+      <label className="flex items-center gap-2 mb-3 text-sm"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />取り込み後すぐに公開する（オフなら非公開で取り込み）</label>
+      {msg && (
+        <div className={`text-sm mb-3 ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+          {msg.text}
+          {msg.errors?.slice(0, 5).map((e) => <div key={e.index} className="text-amber-400">#{e.index + 1}: {e.message}</div>)}
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className={`${btn} bg-slate-700`}>閉じる</button>
+        <button onClick={run} disabled={!text.trim()} className={`${btn} bg-sky-600 font-bold disabled:opacity-40`}>取り込む</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- プレイヤー ---------------- */
+function Players({ user }) {
+  const [q, setQ] = useState('');
+  const [data, setData] = useState({ players: [], total: 0 });
+  const [error, setError] = useState('');
+
+  const load = useCallback(async (query) => {
+    try { setData(await adminApi(user, `/players?q=${encodeURIComponent(query)}`)); setError(''); } catch (e) { setError(e.message); }
+  }, [user]);
+
+  // 入力のたびに少し待ってから検索
+  useEffect(() => {
+    const t = setTimeout(() => load(q), 300);
+    return () => clearTimeout(t);
+  }, [q, load]);
+
+  const ban = async (p) => {
+    let body;
+    if (p.banned) {
+      if (!window.confirm(`${p.displayName} のBANを解除しますか？`)) return;
+      body = { banned: false };
+    } else {
+      const reason = window.prompt(`${p.displayName} をBANします。理由（任意）を入力してください`, '');
+      if (reason === null) return;
+      body = { banned: true, reason };
+    }
+    try { await adminApi(user, `/players/${p.uid}/ban`, { method: 'POST', body }); load(q); } catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div>
+      <input className={`${input} mb-1`} placeholder="名前・メール・UIDで検索" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="text-xs text-slate-400 mb-4">該当 {data.total} 人（上位200人まで表示・レート順）</p>
+      {error && <p className="text-red-400 mb-3">{error}</p>}
+      <ul className="space-y-2">
+        {data.players.map((p) => (
+          <li key={p.uid} className={`rounded-xl p-3 flex items-center gap-3 ${p.banned ? 'bg-red-950/50' : 'bg-[#171a20]'}`}>
+            <RankBadge rank={p.rank} size={44} />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold truncate">{p.displayName}{p.banned && <span className="ml-2 text-xs bg-red-600 rounded px-1.5 py-0.5">BAN中</span>}</p>
+              <p className="text-xs text-slate-400 truncate">{p.email} ・ {p.rank.label}（{p.isMaster ? `${p.mr} MR` : `${p.pt} pt`}）・ {p.games}戦 {p.wins}勝 {p.losses}敗</p>
+              {p.banned && p.banReason && <p className="text-xs text-red-300">理由: {p.banReason}</p>}
+            </div>
+            <button onClick={() => ban(p)} className={`${btn} shrink-0 ${p.banned ? 'bg-slate-700' : 'bg-red-600'}`}>{p.banned ? '解除' : 'BAN'}</button>
+          </li>
+        ))}
+        {data.players.length === 0 && <li className="text-slate-400 text-center py-8">プレイヤーがいません</li>}
+      </ul>
+    </div>
+  );
+}

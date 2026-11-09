@@ -1,4 +1,4 @@
-import { TIERS, MASTER_START, MASTER_INITIAL_MR, DEMOTION_FROM_TIER_INDEX, tierIndex, subRankStart } from './rank.js';
+import { TIERS, MASTER_START, MASTER_INITIAL_MR, PLATINUM_INDEX, PLATINUM_FLOOR, tierIndex } from './rank.js';
 
 /**
  * 試合終了後のレート増減値を計算する関数（スピードボーナス込み）
@@ -24,8 +24,9 @@ export function calculateRateChange(myScore, othersAverageScore, myAverageTime, 
 /**
  * 変動値をプロフィールに反映する。
  * - マスター: MRを増減（マスターから降格しない。MRは0未満にならない）
- * - ルーキー〜ゴールド: 降格なし → 現在のサブランクの下限より下がらない
- * - プラチナ・ダイヤ: サブランクは降格する。ただしティアの下限(3500/5000)は割らない
+ * - ルーキー〜ゴールド: ポイントは下がるが、ティア(メインランク)は降格しない → 現在のティアの下限で止まる
+ *   (ティア内のサブランクは上下する)
+ * - プラチナ・ダイヤ: サブランクもティアも降格する(ダイヤ→プラチナ)。ただしプラチナの下限(3500)は割らない
  * - 7000pt到達でマスター(MR1500)へ昇格
  */
 export function applyDelta(p, delta) {
@@ -34,7 +35,7 @@ export function applyDelta(p, delta) {
   let pt = p.pt + delta;
   if (delta < 0) {
     const ti = tierIndex(p.pt);
-    const floor = ti < DEMOTION_FROM_TIER_INDEX ? subRankStart(p.pt) : TIERS[ti].start;
+    const floor = ti < PLATINUM_INDEX ? TIERS[ti].start : PLATINUM_FLOOR;
     pt = Math.max(pt, floor);
   }
   pt = Math.max(0, pt);

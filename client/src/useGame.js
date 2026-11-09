@@ -15,6 +15,7 @@ export function useGame(user) {
   const [scores, setScores] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [banReason, setBanReason] = useState('');
 
   useEffect(() => { qRef.current = q; }, [q]);
 
@@ -25,7 +26,11 @@ export function useGame(user) {
 
     s.on('connect', () => { setConn('online'); setError(null); });
     s.on('disconnect', () => setConn('offline'));
-    s.on('connect_error', (e) => { setConn('error'); setError(e.message); });
+    s.on('connect_error', (e) => {
+      if (e.message === 'BANNED') { setBanReason(e.data?.reason || ''); setConn('banned'); return; }
+      setConn('error'); setError(e.message);
+    });
+    s.on('banned', ({ reason }) => { setBanReason(reason || ''); setConn('banned'); });
     s.on('sping', (ack) => ack());
     s.on('profile', setProfile);
     s.on('queue:status', setQueue);
@@ -58,5 +63,11 @@ export function useGame(user) {
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  return { conn, profile, phase, queue, match, q, scores, result, error, joinQueue, leaveQueue, goHome, answer };
+  const setName = useCallback((name) => new Promise((resolve) => {
+    const s = sockRef.current;
+    if (!s) return resolve({ ok: false, error: '未接続です' });
+    s.timeout(5000).emit('profile:setName', name, (err, res) => resolve(err ? { ok: false, error: '通信に失敗しました' } : res));
+  }), []);
+
+  return { conn, banReason, setName, profile, phase, queue, match, q, scores, result, error, joinQueue, leaveQueue, goHome, answer };
 }

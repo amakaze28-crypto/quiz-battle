@@ -5,14 +5,16 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import { cfg } from './config.js';
 import * as store from './store.js';
-import { loadQuestions, pickQuestions } from './questions.js';
+import { reloadQuestions, seedIfEmpty, pickQuestions, publishedCount } from './questions.js';
+import { mountAdmin } from './admin.js';
 import { Matchmaker } from './matchmaker.js';
 import { Room } from './game.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet, startEmperorRefresh } from './emperors.js';
 
 store.initStore();
-loadQuestions();
+await seedIfEmpty();
+await reloadQuestions();
 startEmperorRefresh();
 
 const app = express();
@@ -23,24 +25,42 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: cfg.origin } });
 
 const roomsByUid = new Map();
-const profilePayload = (p) => ({ ...p, rank: rankInfo(p, getEmperorSet()) });
+const profilePayload = (p, isAdmin) => ({
+  uid: p.uid, displayName: p.displayName, photoURL: p.photoURL, email: p.email, pt: p.pt, mr: p.mr, isMaster: p.isMaster,
+  wins: p.wins, losses: p.losses, games: p.games, isAdmin: !!isAdmin, rank: rankInfo(p, getEmperorSet()),
+});
 
 const matchmaker = new Matchmaker((group) => {
-  const room = new Room(io, crypto.randomUUID(), group, pickQuestions(), (r) => {
+  const questions = pickQuestions();
+  if (!questions.length) {
+    group.forEach((e) => e.socket.emit('queue:error', '現在出題できる問題がありません'));
+    return;
+  }
+  const room = new Room(io, crypto.randomUUID(), group, questions, (r) => {
     r.players.forEach((p) => { if (roomsByUid.get(p.uid) === r) roomsByUid.delete(p.uid); });
   });
   group.forEach((e) => roomsByUid.set(e.uid, room));
   room.start();
 });
 
+mountAdmin(app, { io, matchmaker });
+
 io.use(async (socket, next) => {
+  let user;
   try {
-    const user = await store.verifyToken(socket.handshake.auth?.token);
-    Object.assign(socket.data, user);
-    next();
+    user = await store.verifyToken(socket.handshake.auth?.token);
   } catch {
-    next(new Error('認証に失敗しました'));
+    return next(new Error('認証に失敗しました'));
   }
+  const profile = await store.getOrCreateUser(user.uid, user.name, user.photoURL, user.email);
+  if (profile.banned) {
+    const err = new Error('BANNED');
+    err.data = { reason: profile.banReason || '' };
+    return next(err);
+  }
+  Object.assign(socket.data, user, { name: profile.displayName || user.name });
+  socket.data.profile = profile;
+  next();
 });
 
 // 通信遅延(RTT)を定期計測してラグ補正に使う
@@ -54,20 +74,32 @@ function measureRtt(socket) {
 }
 
 io.on('connection', async (socket) => {
-  const { uid, name, photoURL } = socket.data;
-  const profile = await store.getOrCreateUser(uid, name, photoURL);
-  socket.emit('profile', profilePayload(profile));
+  const { uid, name, photoURL, email, isAdmin } = socket.data;
+  socket.emit('profile', profilePayload(socket.data.profile, isAdmin));
 
   measureRtt(socket);
   const rttTimer = setInterval(() => measureRtt(socket), 5000);
 
   socket.on('queue:join', async () => {
     if (roomsByUid.has(uid) || matchmaker.has(uid)) return socket.emit('queue:error', 'すでに参加中です');
-    const fresh = await store.getOrCreateUser(uid, name, photoURL);
+    if (publishedCount() === 0) return socket.emit('queue:error', '現在出題できる問題がありません');
+    const fresh = await store.getOrCreateUser(uid, name, photoURL, email);
+    if (fresh.banned) return;
+    const info = rankInfo(fresh, getEmperorSet());
     matchmaker.join({
-      uid, name, photoURL, socket, rating: ratingValue(fresh),
-      rankLabel: rankInfo(fresh, getEmperorSet()).label,
+      uid, name: fresh.displayName || name, photoURL, socket, rating: ratingValue(fresh),
+      rankLabel: info.label, rankKey: info.key, rankSub: info.sub,
     });
+  });
+
+  socket.on('profile:setName', async (raw, ack) => {
+    const n = typeof raw === 'string' ? raw.trim() : '';
+    if (n.length < 1 || n.length > 16) return ack?.({ ok: false, error: '表示名は1〜16文字で入力してください' });
+    await store.updateUser(uid, { displayName: n });
+    const fresh = await store.getOrCreateUser(uid, name, photoURL, email);
+    socket.data.name = n;
+    socket.emit('profile', profilePayload(fresh, isAdmin));
+    ack?.({ ok: true });
   });
 
   socket.on('queue:leave', () => matchmaker.leave(uid));

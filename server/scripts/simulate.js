@@ -1,9 +1,9 @@
 // 4人分のダミークライアントで1試合を通しで動かす動作確認スクリプト（開発モードのサーバー向け）
 import { io } from 'socket.io-client';
-import { loadQuestions } from '../src/questions.js';
+import fs from 'fs';
 
 const SERVER = process.env.SERVER || 'http://localhost:3001';
-const bank = loadQuestions();
+const bank = JSON.parse(fs.readFileSync(new URL('../questions.json', import.meta.url), 'utf8'));
 const answerOf = new Map(bank.map((q) => [q.question, q.answer]));
 
 const bots = [

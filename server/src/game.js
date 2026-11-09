@@ -18,7 +18,7 @@ export class Room {
     this.cur = null;
     this.players = entries.map((e) => ({
       uid: e.uid, name: e.name, photoURL: e.photoURL, socket: e.socket,
-      rating: e.rating, rankLabel: e.rankLabel,
+      rating: e.rating, rankLabel: e.rankLabel, rankKey: e.rankKey, rankSub: e.rankSub,
       score: 0, times: [], connected: true,
     }));
   }
@@ -39,7 +39,7 @@ export class Room {
       roomId: this.id,
       total: this.questions.length,
       countdownMs: cfg.countdownMs,
-      players: this.players.map((p) => ({ uid: p.uid, name: p.name, photoURL: p.photoURL, rank: p.rankLabel })),
+      players: this.players.map((p) => ({ uid: p.uid, name: p.name, photoURL: p.photoURL, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
     });
     this.after(cfg.countdownMs, () => this.startQuestion(0));
   }
@@ -174,17 +174,24 @@ export class Room {
     }
 
     const emperors = getEmperorSet();
+    const infoOf = (p) => (p.profile ? rankInfo(p.profile, emperors) : { label: p.rankLabel, key: p.rankKey, sub: p.rankSub });
     this.io.to(this.id).emit('match:end', {
       total: this.questions.length,
       results: sorted.map((p) => ({
         uid: p.uid, name: p.name, photoURL: p.photoURL, score: p.score,
         avgTime: Math.round(p.avgTime * 100) / 100, place: p.place, delta: p.delta,
-        rank: p.profile ? rankInfo(p.profile, emperors).label : p.rankLabel,
+        rank: infoOf(p).label, rankKey: infoOf(p).key, rankSub: infoOf(p).sub,
         pt: p.profile?.pt ?? null, mr: p.profile?.mr ?? null,
       })),
     });
     for (const p of this.players) {
-      if (p.profile) p.socket.emit('profile', { ...p.profile, rank: rankInfo(p.profile, emperors) });
+      if (p.profile) {
+        const x = p.profile;
+        p.socket.emit('profile', {
+          uid: x.uid, displayName: x.displayName, photoURL: x.photoURL, email: x.email, pt: x.pt, mr: x.mr, isMaster: x.isMaster,
+          wins: x.wins, losses: x.losses, games: x.games, isAdmin: !!p.socket.data.isAdmin, rank: rankInfo(x, emperors),
+        });
+      }
     }
     this.close();
   }

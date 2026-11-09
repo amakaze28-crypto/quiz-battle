@@ -3,6 +3,7 @@ import 'dotenv/config';
 const origins = (process.env.CLIENT_ORIGIN || '*').split(',').map((s) => s.trim());
 
 export const cfg = {
+  adminEmails: (process.env.ADMIN_EMAILS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
   port: Number(process.env.PORT) || 3001,
   origin: origins.includes('*') ? '*' : origins,
   matchSize: Number(process.env.MATCH_SIZE) || 4,

@@ -1,13 +1,15 @@
+import RankBadge from './RankBadge';
+
 export default function Result({ g, myUid }) {
   const { result, goHome } = g;
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6 max-w-md mx-auto">
+    <div className="min-h-screen bg-[#0e1013] text-white p-6 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4 text-center">試合結果</h1>
       <div className="space-y-3 mb-6">
         {result.results.map((r) => (
-          <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-800' : 'bg-slate-800'}`}>
-            <div className="flex justify-between items-baseline">
-              <span className="font-bold">{r.place}位　{r.name}</span>
+          <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-800' : 'bg-[#171a20]'}`}>
+            <div className="flex justify-between items-center">
+              <span className="font-bold flex items-center gap-2"><RankBadge rank={{ key: r.rankKey, sub: r.rankSub, label: r.rank }} size={36} />{r.place}位　{r.name}</span>
               <span className={`text-xl font-extrabold ${r.delta > 0 ? 'text-emerald-400' : r.delta < 0 ? 'text-red-400' : ''}`}>
                 {r.delta > 0 ? '+' : ''}{r.delta}
               </span>
