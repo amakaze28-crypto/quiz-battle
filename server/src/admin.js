@@ -225,6 +225,30 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({ ok: true });
   }));
 
+  // ---- 問題の通報（問題ごとに集計） ----
+  const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+  r.get('/qreports', wrap(async (_req, res) => {
+    const [reps, qs] = await Promise.all([store.colList('qreports'), store.listQuestions()]);
+    const byId = new Map(qs.map((q) => [q.id, q]));
+    const g = new Map();
+    for (const x of reps) {
+      const e = g.get(x.qid) || { qid: x.qid, counts: {}, total: 0, open: 0, last: 0 };
+      e.counts[x.reason] = (e.counts[x.reason] || 0) + 1; e.total += 1; if (!x.resolved) e.open += 1; e.last = Math.max(e.last, x.createdAt || 0);
+      g.set(x.qid, e);
+    }
+    const list = [...g.values()].map((e) => {
+      const q = byId.get(e.qid);
+      return { ...e, exists: !!q, question: q?.question || '（削除済みの問題）', choices: q?.choices || [], answer: q?.answer ?? 0, explanation: q?.explanation || '', published: !!q?.published, file: q?.file || '未分類' };
+    }).sort((a, b) => (b.open > 0) - (a.open > 0) || b.last - a.last);
+    res.json({ reports: list, labels: QLABEL, unresolved: list.filter((x) => x.open > 0).length });
+  }));
+  r.post('/qreports/:qid/resolve', wrap(async (req, res) => {
+    const resolved = req.body.resolved !== false;
+    const list = (await store.colList('qreports')).filter((x) => x.qid === req.params.qid);
+    for (const x of list) await store.colSet('qreports', x.id, { resolved });
+    res.json({ changed: list.length });
+  }));
+
   // ---- 通報メッセージ ----
   r.get('/reports', wrap(async (_req, res) => {
     const list = (await store.colList('reports')).sort((a, b) => b.createdAt - a.createdAt).slice(0, 300);

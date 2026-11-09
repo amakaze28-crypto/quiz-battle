@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stage, Box, fs } from './Stage';
 import { Avatar } from './Parts';
-import ReportModal from './ReportModal';
+import ReportModal, { QuestionReportModal } from './ReportModal';
 import { sfx } from './audio';
 
 const CARD_X = [37, 282, 527, 773];
@@ -33,6 +33,7 @@ export default function Game({ g, user }) {
   const { q, match, scores, avgTimes, secIntro, answer, conn, profile } = g;
   const [now, setNow] = useState(performance.now());
   const [report, setReport] = useState(false);
+  const [qReport, setQReport] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(performance.now()), 100);
@@ -78,6 +79,11 @@ export default function Game({ g, user }) {
         <Box x={165} y={44} w={230} h={40} className="flex items-center truncate" style={{ fontSize: fs(25), fontWeight: 700 }}>{me?.name}</Box>
         <Box x={165} y={97} w={205} h={28} className="flex items-center" style={{ fontSize: fs(20), color: '#cbd5e1' }}>
           {profile?.rank?.label}　{profile?.isMaster ? `${profile.mr}MR` : `${profile?.pt}pt`}
+        </Box>
+
+        {/* 問題の通報 */}
+        <Box x={420} y={52} w={320} h={72} className="rounded-lg bg-[#0d2347] border border-[#3b7bc4] grid place-items-center">
+          <button onClick={() => setQReport(true)} className="w-full h-full font-bold text-amber-300" style={{ fontSize: fs(26) }}>⚠ 問題を通報</button>
         </Box>
 
         {/* 右上：通報（チャット機能は無し） */}
@@ -167,6 +173,7 @@ export default function Game({ g, user }) {
         {/* ◯×（正解は◯・不正解/時間切れは×） */}
         {markKey && <MarkPop key={markKey} kind={markKind} />}
       </Stage>
+      {qReport && <QuestionReportModal user={user} question={{ id: q.id, question: q.question }} onClose={() => setQReport(false)} />}
       {report && <ReportModal user={user} roomId={match.roomId} players={match.players.filter((p) => p.uid !== myUid)} onClose={() => setReport(false)} />}
     </>
   );

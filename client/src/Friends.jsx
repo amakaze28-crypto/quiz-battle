@@ -68,7 +68,7 @@ export default function Friends({ user, go, summary, refresh }) {
       <Hot x={836} y={20} w={80} h={78} label="検索" onClick={() => { setTab('search'); setMsg(null); }} />
 
       {TABS.map(([k, label, x, w]) => (
-        <Box key={k} x={x} y={288} w={w} h={64}>
+        <Box key={k} x={x} y={248} w={w} h={64}>
           <button onClick={() => { setTab(k); setMsg(null); }} className="relative w-full h-full rounded-t-lg font-bold"
             style={{ background: tab === k ? gold : navy, color: tab === k ? '#2b1d05' : '#cbd5e1', border: '2px solid #c9a24a', borderBottom: 0, fontSize: fs(27) }}>
             {label}{k === 'requests' && incoming > 0 && <Dot className="absolute top-1 right-2 w-[2.4cqw] h-[2.4cqw]" />}
@@ -77,7 +77,7 @@ export default function Friends({ user, go, summary, refresh }) {
       ))}
 
       {/* 人数・並び替え */}
-      <Box x={40} y={384} w={945} h={50} className="flex items-center justify-between px-[2.4cqw]" style={panel}>
+      <Box x={40} y={344} w={945} h={50} className="flex items-center justify-between px-[2.4cqw]" style={panel}>
         <span />
         <div className="flex items-center gap-[2cqw]">
           <span style={{ fontSize: fs(26), color: '#e5e7eb', fontWeight: 700 }}>{data?.friends.length ?? 0} / 50</span>
@@ -88,7 +88,7 @@ export default function Friends({ user, go, summary, refresh }) {
       </Box>
 
       {/* 一覧 */}
-      <Box x={40} y={436} w={945} h={754} className="overflow-y-auto p-[1.4cqw] space-y-[1.2cqw]" style={panel}>
+      <Box x={40} y={396} w={945} h={794} className="overflow-y-auto p-[1.4cqw] space-y-[1.2cqw]" style={panel}>
         {msg && <p className={msg.ok ? 'text-emerald-300' : 'text-red-300'} style={{ fontSize: fs(22) }}>{msg.text}</p>}
 
         {tab === 'list' && (

@@ -1,4 +1,4 @@
-import { sfx, BATTLE_TRACKS, getBattleBgm, setBattleBgm } from './audio';
+import { sfx, BATTLE_TRACKS, getBattleBgm, setBattleBgm, previewBgm, stopPreview } from './audio';
 import { Panel, Btn } from './Ui';
 import { useState } from 'react';
 import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
@@ -11,6 +11,7 @@ export default function Home({ g, summary, go, onLogout }) {
   const [menu, setMenu] = useState(false);
   const [detail, setDetail] = useState(false);
   const [bgm, setBgm] = useState(getBattleBgm());
+  const closeDetail = () => { stopPreview(); setDetail(false); };
   const online = conn === 'online' && profile;
 
   return (
@@ -24,30 +25,33 @@ export default function Home({ g, summary, go, onLogout }) {
         )}
 
         <Hot x={65} y={850} w={890} h={290} label="ランクマッチ" onClick={() => { if (online) { sfx('queue'); g.joinQueue(); } }} />
-        <Box x={330} y={1196} w={364} h={78}>
-          <button data-sfx onClick={() => setDetail(true)} className="ui-btn w-full h-full" style={{ fontSize: fs(30) }}>⚙ 詳細設定</button>
+        {/* 戦闘BGMの設定（音符） */}
+        <Box x={852} y={1156} w={104} h={104}>
+          <button onClick={() => setDetail(true)} aria-label="戦闘BGMの設定" className="w-full h-full active:scale-90 transition-transform">
+            <img src="/ui/note.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,.6))' }} />
+          </button>
         </Box>
         {error && conn === 'online' && (
           <Box x={100} y={1146} w={820} h={44} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{error}</Box>
         )}
 
-        <NavHot go={go} y={1322} h={150} />
-        <NavDots summary={summary} y={1332} Dot={Dot} />
+        <NavHot go={go} y={1355} h={150} />
+        <NavDots summary={summary} y={1372} Dot={Dot} />
 
         {detail && (
-          <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 p-4" onClick={() => setDetail(false)}>
+          <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 p-4" onClick={closeDetail}>
             <Panel className="w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-center font-bold text-lg mb-1">ランクマッチ 詳細設定</h2>
-              <p className="text-center text-xs text-slate-300 mb-3">戦闘中に流れるBGMを選べます</p>
+              <h2 className="text-center font-bold text-lg mb-1">♪ 戦闘BGM</h2>
+              <p className="text-center text-xs text-slate-300 mb-3">戦闘中に流れるBGMを選べます（選ぶと少しだけ試聴できます）</p>
               <div className="space-y-2 mb-4">
                 {BATTLE_TRACKS.map(([k, label]) => (
                   <label key={k} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer ${bgm === k ? 'border-amber-400 bg-amber-400/15' : 'border-white/15 bg-black/20'}`}>
-                    <input type="radio" name="bgm" className="accent-amber-400 w-4 h-4" checked={bgm === k} onChange={() => { setBgm(k); setBattleBgm(k); sfx('ok'); }} />
+                    <input type="radio" name="bgm" className="accent-amber-400 w-4 h-4" checked={bgm === k} onChange={() => { setBgm(k); setBattleBgm(k); previewBgm(k); }} />
                     <span className="font-semibold">{label}</span>
                   </label>
                 ))}
               </div>
-              <Btn variant="gold" block onClick={() => setDetail(false)}>とじる</Btn>
+              <Btn variant="gold" block onClick={closeDetail}>とじる</Btn>
             </Panel>
           </div>
         )}

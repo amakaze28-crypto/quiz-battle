@@ -74,7 +74,22 @@ async function apply() {
 
 // 対戦曲は3曲からランダム。対戦の間は同じ曲を流し、対戦から出るたびに選び直す
 let battlePick = null;
+// 試聴: 選んだ戦闘曲を少しだけ流して、元のBGMに戻す
+let prevWant = null; let prevTimer = null;
+export function stopPreview() {
+  clearTimeout(prevTimer);
+  if (prevWant !== null) { want = prevWant; prevWant = null; apply(); }
+}
+export function previewBgm(name, ms = 8000) {
+  clearTimeout(prevTimer);
+  if (!BATTLE.includes(name)) { stopPreview(); return; } // 「ランダム」は試聴なし
+  if (prevWant === null) prevWant = want;
+  want = name; apply();
+  prevTimer = setTimeout(stopPreview, ms);
+}
+
 export const playBgm = (name) => {
+  clearTimeout(prevTimer); prevWant = null; // 試聴中に画面が変わったら試聴は終了
   if (name === 'battle') { if (!battlePick) { const c = getBattleBgm(); battlePick = c === 'random' ? BATTLE[Math.floor(Math.random() * BATTLE.length)] : c; } want = battlePick; }
   else { battlePick = null; want = name; }
   apply();

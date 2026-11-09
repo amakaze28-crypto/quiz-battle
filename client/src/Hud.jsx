@@ -1,4 +1,4 @@
-import { Box, Hot, fs } from './Stage';
+import { Box, Hot, fs, cq } from './Stage';
 import RankBadge from './RankBadge';
 import { Avatar, Coin, Sand, Dot } from './Parts';
 
@@ -9,7 +9,7 @@ export default function Hud({ profile, summary, onMenu, go }) {
   const progress = r && r.nextAt ? Math.min(100, Math.max(0, ((profile.pt - r.subStart) / (r.nextAt - r.subStart)) * 100)) : 100;
   return (
     <>
-      <Box x={34} y={42} w={196} h={196}>
+      <Box x={46} y={54} w={172} h={172}>
         <button onClick={onMenu} className="w-full h-full rounded-full"><Avatar iconId={profile?.iconId} frameId={profile?.frameId} size={0} /></button>
       </Box>
 
@@ -32,8 +32,8 @@ export default function Hud({ profile, summary, onMenu, go }) {
 
       {profile && (
         <>
-          <Box x={262} y={244} w={236} h={46} className="flex items-center rounded-full bg-[#0b1a36]/85 border border-[#c9a24a]/70 px-3" style={{ fontSize: fs(26), color: '#ffe9a8' }}><Coin n={profile.coins} size={34} /></Box>
-          <Box x={514} y={244} w={236} h={46} className="flex items-center rounded-full bg-[#0b1a36]/85 border border-[#c9a24a]/70 px-3" style={{ fontSize: fs(26), color: '#ffe9a8' }}><Sand n={profile.sand} size={38} /></Box>
+          <Box x={262} y={244} w={236} h={46} className="flex items-center rounded-full bg-[#0b1a36]/85 border border-[#c9a24a]/70" style={{ paddingLeft: cq(12), paddingRight: cq(12), fontSize: fs(26), color: '#ffe9a8' }} ><Coin n={profile.coins} size={cq(34)} /></Box>
+          <Box x={514} y={244} w={236} h={46} className="flex items-center rounded-full bg-[#0b1a36]/85 border border-[#c9a24a]/70" style={{ paddingLeft: cq(12), paddingRight: cq(12), fontSize: fs(26), color: '#ffe9a8' }} ><Sand n={profile.sand} size={cq(38)} /></Box>
         </>
       )}
 

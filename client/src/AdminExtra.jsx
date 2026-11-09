@@ -53,6 +53,44 @@ export function Reports({ user, onCount }) {
   );
 }
 
+/* ---------------- 問題の通報（問題ごとの集計） ---------------- */
+const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+export function QuestionReports({ user, onCount }) {
+  const { data, error, load } = useAdminLoad(user, '/qreports', 'reports');
+  useEffect(() => { if (data) onCount?.(data.filter((r) => r.open > 0).length); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const act = async (fn) => { try { await fn(); load(); } catch (e) { alert(e.message); } };
+  const resolve = (r) => act(() => adminApi(user, `/qreports/${r.qid}/resolve`, { method: 'POST', body: { resolved: r.open > 0 } }));
+  const hide = (r) => act(() => adminApi(user, `/questions/${r.qid}/publish`, { method: 'POST', body: { published: !r.published } }));
+  const del = (r) => { if (window.confirm(`この問題を削除しますか？\n\n${r.question}`)) act(async () => { await adminApi(user, `/questions/${r.qid}`, { method: 'DELETE' }); await adminApi(user, `/qreports/${r.qid}/resolve`, { method: 'POST', body: { resolved: true } }); }); };
+  return (
+    <div>
+      <p className="text-sm text-slate-400 mb-3">プレイヤーからの問題通報です（問題ごとに集計・未対応が上）。修正は「問題」タブの編集から行えます。</p>
+      {error && <p className="text-red-400">{error}</p>}
+      <ul className="space-y-2">
+        {data?.map((r) => (
+          <li key={r.qid} className={`${card} ${r.open > 0 ? 'border border-amber-500/50' : 'opacity-50'}`}>
+            <div className="flex items-center gap-2 flex-wrap text-xs mb-1">
+              <span className="text-sky-300">📁 {r.file}</span>
+              <span className={`rounded px-2 py-0.5 ${r.published ? 'bg-emerald-600' : 'bg-slate-600'}`}>{r.published ? '公開中' : '非公開'}</span>
+              {Object.entries(r.counts).map(([k, n]) => <span key={k} className="rounded bg-red-600/80 px-2 py-0.5">{QLABEL[k]} ×{n}</span>)}
+              <span className="ml-auto text-slate-400">{new Date(r.last).toLocaleString('ja-JP')}</span>
+            </div>
+            <p className="font-semibold">{r.question}</p>
+            <p className="text-sm text-slate-400 mt-1">{r.choices.map((c, i) => <span key={i} className={i === r.answer ? 'text-emerald-400 font-bold mr-3' : 'mr-3'}>{'ABCD'[i]}. {c}</span>)}</p>
+            {r.explanation && <p className="text-xs text-slate-500 mt-1">解説: {r.explanation}</p>}
+            <div className="flex justify-end gap-2 mt-3">
+              <button onClick={() => resolve(r)} className={`${btn} bg-slate-700`}>{r.open > 0 ? '対応済みにする' : '未対応に戻す'}</button>
+              {r.exists && <button onClick={() => hide(r)} className={`${btn} bg-slate-700`}>{r.published ? '非公開にする' : '公開する'}</button>}
+              {r.exists && <button onClick={() => del(r)} className={`${btn} bg-red-600/80`}>問題を削除</button>}
+            </div>
+          </li>
+        ))}
+        {data?.length === 0 && <li className="text-slate-400 text-center py-8">問題の通報はありません</li>}
+      </ul>
+    </div>
+  );
+}
+
 /* ---------------- メール（プレゼント） ---------------- */
 export function Delivery({ user }) {
   const { data, load } = useAdminLoad(user, '/mails', 'mails');

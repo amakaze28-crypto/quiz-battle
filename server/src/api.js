@@ -364,6 +364,20 @@ export function mountApi(app) {
     res.json({ ok: true });
   }));
 
+  // ---- 問題の通報（難易度がおかしい / 看護に関係ない / 答えが間違っている） ----
+  const QREASONS = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+  r.post('/report-question', wrap(async (req, res) => {
+    const reason = String(req.body.reason || '');
+    const qid = String(req.body.questionId || '').slice(0, 80);
+    if (!QREASONS[reason]) return res.status(400).json({ error: '通報理由を選んでください' });
+    if (!qid) return res.status(400).json({ error: '問題が指定されていません' });
+    // 同じ人が同じ問題を同じ理由で何度送っても1件にまとまる
+    await store.colSet('qreports', `${req.me.uid}_${qid}_${reason}`, {
+      qid, reason, fromUid: req.me.uid, createdAt: Date.now(), resolved: false,
+    });
+    res.json({ ok: true });
+  }));
+
   app.use('/api', r);
 
   // アイテム画像（アイコン・フレーム・バナー）の配信（認証不要・不変URL）

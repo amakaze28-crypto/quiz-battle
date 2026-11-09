@@ -18,14 +18,14 @@ export const Banner = ({ bannerId, className = '', style }) => (
 );
 
 export const Coin = ({ n, size = 18, className = '' }) => (
-  <span className={`inline-flex items-center gap-1 font-bold ${className}`}>
+  <span className={`inline-flex items-center font-bold ${className}`} style={{ gap: typeof size === 'string' ? '0.4em' : 4 }}>
     <img src="/ui/coin.png" alt="" style={{ width: size, height: size }} draggable={false} />
     {typeof n === 'number' ? n.toLocaleString() : n}
   </span>
 );
 
 export const Sand = ({ n, size = 18, className = '' }) => (
-  <span className={`inline-flex items-center gap-1 font-bold ${className}`}>
+  <span className={`inline-flex items-center font-bold ${className}`} style={{ gap: typeof size === 'string' ? '0.4em' : 4 }}>
     <img src="/ui/sand.png" alt="魔法の砂" style={{ width: size, height: size }} draggable={false} />
     {typeof n === 'number' ? n.toLocaleString() : n}
   </span>

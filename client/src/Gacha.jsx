@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
 import { sfx } from './audio';
-import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
+import { Stage, Box, Hot, NavHot, NavDots, fs, cq } from './Stage';
 import Hud from './Hud';
 import AccountMenu from './AccountMenu';
 import ItemPreview from './ItemPreview';
@@ -121,7 +121,7 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
         className="w-full h-full rounded-2xl flex flex-col items-center justify-center text-white disabled:opacity-45"
         style={{ background: 'linear-gradient(180deg,#1b3b78,#0e2147)', border: '4px solid #e0b64f', boxShadow: '0 0 28px rgba(255,214,120,.35)' }}>
         <span style={{ fontSize: fs(52), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 6px #000' }}>{label}</span>
-        <span className="mt-[1.5cqw]"><Coin n={cost * count} size={38} className="text-amber-200" /></span>
+        <span className="mt-[1.5cqw]"><Coin n={cost * count} size={cq(38)} className="text-amber-200" /></span>
       </button>
     </Box>
   );
@@ -144,10 +144,10 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
         <Btn x={70} count={1} label="1回引く" />
         <Btn x={524} count={10} label="10回引く" />
         {msg && <Box x={70} y={1125} w={884} h={50} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{msg}</Box>}
-        {info && coins < cost && <Box x={70} y={1170} w={884} h={46} className="text-center" style={{ fontSize: fs(22), color: '#fde68a', textShadow: '0 1px 4px #000' }}>コインはミッションやメールで手に入ります</Box>}
+        {info && coins < cost && <Box x={70} y={1170} w={884} h={46} className="text-center rounded-lg bg-black/55 grid place-items-center" style={{ fontSize: fs(22), color: '#fde68a' }}>コインはミッションやメールで手に入ります</Box>}
 
-        <NavHot go={go} y={1322} h={150} />
-        <NavDots summary={summary} y={1332} Dot={Dot} />
+        <NavHot go={go} y={1355} h={150} />
+        <NavDots summary={summary} y={1372} Dot={Dot} />
       </Stage>
       <AccountMenu open={menu} onClose={() => setMenu(false)} anchor="left" profile={profile} go={go} onLogout={onLogout} />
       {result && <Results data={result} onClose={() => setResult(null)} />}

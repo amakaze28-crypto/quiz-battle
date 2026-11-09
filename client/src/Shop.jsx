@@ -1,7 +1,7 @@
 import { sfx } from './audio';
 import { useCallback, useEffect, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, BackHome, NavHot, NavDots, fs } from './Stage';
+import { Stage, Box, BackHome, NavHot, NavDots, fs, cq } from './Stage';
 import { Avatar, Sand, Dot, RarityTag } from './Parts';
 import ItemPreview from './ItemPreview';
 import { RARITY } from './icons';
@@ -34,7 +34,7 @@ export default function Shop({ user, profile, call, go, summary }) {
     if (i.owned) return <button onClick={() => equip(tab, i.id)} className={`${base} bg-sky-600 text-white`} style={st}>装備する</button>;
     return (
       <button onClick={() => buy(i)} disabled={sand < i.price} className={`${base} bg-[#0b1a36] border border-[#c9a24a] text-amber-200 disabled:opacity-40`} style={st}>
-        <Sand n={i.price} size={20} />
+        <Sand n={i.price} size={cq(20)} />
       </button>
     );
   };
@@ -43,7 +43,7 @@ export default function Shop({ user, profile, call, go, summary }) {
     <Stage bg="/ui/shop.jpg">
       <BackHome go={go} />
       <Box x={430} y={26} w={470} h={64} className="flex items-center justify-end pr-2 rounded-lg" style={{ fontSize: fs(34), color: '#ffe9a8', textShadow: '0 2px 6px #000' }}>
-        <Sand n={sand} size={50} />
+        <Sand n={sand} size={cq(50)} />
       </Box>
 
       {/* 左のタブ */}

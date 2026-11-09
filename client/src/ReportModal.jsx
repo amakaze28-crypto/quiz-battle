@@ -55,3 +55,43 @@ export default function ReportModal({ user, roomId, players, initialUid, onClose
     </div>
   );
 }
+
+const QREASONS = [['difficulty', '難易度がおかしい'], ['irrelevant', '看護に関係ない'], ['wrong', '答えが間違っている']];
+
+// 不適切だと思った問題の通報（理由は3種類）
+export function QuestionReportModal({ user, question, onClose }) {
+  const [reason, setReason] = useState('');
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    setBusy(true);
+    try {
+      await callApi(user, '/report-question', { method: 'POST', body: { questionId: question.id, reason } });
+      setMsg({ ok: true, text: '問題を通報しました。ご協力ありがとうございます。' });
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setBusy(false);
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 overflow-y-auto">
+      <div className="ui-panel w-full max-w-sm p-3 text-white my-6">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="font-bold text-lg">問題を通報</h2>
+          <button onClick={onClose} className="text-slate-400 text-xl leading-none">✕</button>
+        </div>
+        <p className="text-xs text-slate-300 mb-3 rounded bg-black/30 p-2 line-clamp-3">{question.question}</p>
+        <div className="space-y-2 mb-3">
+          {QREASONS.map(([k, label]) => (
+            <label key={k} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer ${reason === k ? 'bg-sky-800' : 'bg-[#0e1013]'}`}>
+              <input type="radio" name="qreason" checked={reason === k} onChange={() => setReason(k)} />{label}
+            </label>
+          ))}
+        </div>
+        {msg && <p className={`text-sm mb-2 ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700">{msg?.ok ? '閉じる' : 'キャンセル'}</button>
+          {!msg?.ok && <button onClick={send} disabled={!reason || busy} className="px-4 py-2 rounded-lg bg-red-600 font-bold disabled:opacity-40">通報する</button>}
+        </div>
+      </div>
+    </div>
+  );
+}

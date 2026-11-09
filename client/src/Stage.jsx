@@ -5,6 +5,7 @@ export const W = 1024;
 export const H = 1536;
 const pct = (n, base) => `${(n / base) * 100}%`;
 export const fs = (px) => `${px / 10.24}cqw`;
+export const cq = fs; // 画像内ピクセル → 画面幅に比例する長さ（画面サイズを変えても比率が崩れない）
 
 export function Stage({ bg, children }) {
   return (
