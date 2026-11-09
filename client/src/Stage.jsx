@@ -1,3 +1,5 @@
+import { BgLayer } from './Ui';
+
 // 背景画像(1024x1536)の上に、画像内の座標(px)のまま部品を重ねるための土台
 export const W = 1024;
 export const H = 1536;
@@ -6,8 +8,9 @@ export const fs = (px) => `${px / 10.24}cqw`;
 
 export function Stage({ bg, children }) {
   return (
-    <div className="min-h-screen grid place-items-center bg-[#070b14]">
-      <div className="relative overflow-hidden select-none"
+    <div className="min-h-screen flex items-end justify-center">
+      <BgLayer dim />
+      <div className="relative overflow-hidden select-none shadow-[0_0_40px_rgba(0,0,0,.6)]"
         style={{ width: 'min(100vw, calc(100dvh * 2 / 3))', aspectRatio: '2 / 3', containerType: 'inline-size' }}>
         <img src={bg} alt="" draggable={false} className="absolute inset-0 w-full h-full" />
         {children}

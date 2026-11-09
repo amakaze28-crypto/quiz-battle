@@ -157,8 +157,15 @@ function ImportModal({ user, onClose, onDone }) {
   const [msg, setMsg] = useState(null);
 
   const onFile = async (e) => {
-    const f = e.target.files?.[0];
-    if (f) setText(await f.text());
+    // 複数ファイルを選ぶと、中の問題をまとめて取り込めます
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    const all = [];
+    for (const f of files) {
+      try { const d = JSON.parse(await f.text()); all.push(...(Array.isArray(d) ? d : d.questions || [])); }
+      catch { return setMsg({ ok: false, text: `${f.name} をJSONとして読み込めません` }); }
+    }
+    setText(JSON.stringify(all, null, 1)); setMsg({ ok: true, text: `${files.length}ファイル・${all.length}問を読み込みました。「取り込む」を押してください` });
   };
 
   const run = async () => {
@@ -180,7 +187,7 @@ function ImportModal({ user, onClose, onDone }) {
   return (
     <Modal title="JSON取り込み" onClose={onClose}>
       <p className="text-xs text-slate-400 mb-2">形式: <code>[{'{'}"question":"…","choices":["A","B","C","D"],"answer":0,"explanation":"任意"{'}'}]</code>（answerは0始まり）。同じ問題文は重複としてスキップされます。</p>
-      <input type="file" accept=".json,application/json" onChange={onFile} className="mb-2 text-sm" />
+      <input type="file" multiple accept=".json,application/json" onChange={onFile} className="mb-2 text-sm" />
       <textarea className={`${input} font-mono text-xs mb-3`} rows={8} placeholder="ここにJSONを貼り付け、またはファイルを選択" value={text} onChange={(e) => setText(e.target.value)} />
       <label className="flex items-center gap-2 mb-3 text-sm"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />取り込み後すぐに公開する（オフなら非公開で取り込み）</label>
       {msg && (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import RankBadge from './RankBadge';
 import { Avatar } from './Parts';
 import ReportModal from './ReportModal';
+import { BgLayer, Panel, Btn, Title } from './Ui';
 
 export default function Result({ g, user }) {
   const { result, goHome, profile } = g;
@@ -9,11 +10,12 @@ export default function Result({ g, user }) {
   const [report, setReport] = useState(null); // 通報対象のuid
 
   return (
-    <div className="min-h-screen bg-[#0e1013] text-white p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4 text-center">試合結果</h1>
+    <div className="min-h-screen text-white p-4 max-w-md mx-auto ui-text">
+      <BgLayer dim />
+      <Title>試合結果</Title>
       <div className="space-y-3 mb-6">
         {result.results.map((r) => (
-          <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-900' : 'bg-[#171a20]'}`}>
+          <Panel key={r.uid} className={`p-3 ${r.uid === myUid ? 'ring-2 ring-[#f1d58a]/80' : ''}`}>
             <div className="flex justify-between items-center">
               <span className="font-bold flex items-center gap-2 min-w-0">
                 <Avatar iconId={r.iconId} frameId={r.frameId} size={36} />
@@ -33,10 +35,10 @@ export default function Result({ g, user }) {
             {r.uid !== myUid && (
               <div className="mt-2 text-right"><button onClick={() => setReport(r.uid)} className="text-xs text-red-300 underline">通報</button></div>
             )}
-          </div>
+          </Panel>
         ))}
       </div>
-      <button onClick={goHome} className="w-full py-4 rounded-2xl bg-emerald-500 text-xl font-bold">ホームに戻る</button>
+      <Btn variant="gold" block className="w-full !min-h-[56px] text-xl" onClick={goHome}>ホームに戻る</Btn>
       {report && (
         <ReportModal user={user} roomId={result.roomId} initialUid={report}
           players={result.results.filter((r) => r.uid !== myUid).map((r) => ({ uid: r.uid, name: r.name, iconId: r.iconId, frameId: r.frameId }))}

@@ -22,7 +22,7 @@ export default function ReportModal({ user, roomId, players, initialUid, onClose
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 overflow-y-auto">
-      <div className="w-full max-w-sm rounded-2xl bg-[#1b1f27] p-5 text-white my-6">
+      <div className="ui-panel w-full max-w-sm p-3 text-white my-6">
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-bold text-lg">プレイヤーを通報</h2>
           <button onClick={onClose} className="text-slate-400 text-xl leading-none">✕</button>
