@@ -6,6 +6,61 @@ import ItemPreview from './ItemPreview';
 import { Panel, Title } from './Ui';
 import { sfx } from './audio';
 
+// 分野別の得意・苦手と、間違えた問題（最新20問）
+function Stats({ user }) {
+  const [st, setSt] = useState(null);
+  const [open, setOpen] = useState(null);
+  useEffect(() => { callApi(user, '/stats').then(setSt).catch(() => setSt({ cats: [], strong: [], weak: [], wrong: [] })); }, [user]);
+  if (!st) return null;
+  const Bar = ({ c, color }) => (
+    <div className="mb-1.5">
+      <div className="flex justify-between text-sm"><span className="truncate pr-2">{c.name}</span><span className="tabular-nums shrink-0">{c.rate}% <span className="text-xs text-slate-400">({c.c}/{c.n})</span></span></div>
+      <div className="h-2 rounded bg-slate-700"><div className="h-2 rounded" style={{ width: `${c.rate}%`, background: color }} /></div>
+    </div>
+  );
+  return (
+    <>
+      <Panel className="p-3 mt-3 text-left">
+        <h3 className="font-bold mb-2">得意な分野・苦手な分野</h3>
+        {st.cats.length === 0 ? <p className="text-sm text-slate-300">対戦で問題に答えると表示されます（各分野3問以上）。</p> : (
+          <>
+            <p className="text-xs text-emerald-300 font-bold mb-1">得意</p>
+            {st.strong.map((c) => <Bar key={c.name} c={c} color="#34d399" />)}
+            {st.weak.length > 0 && <p className="text-xs text-rose-300 font-bold mt-3 mb-1">苦手</p>}
+            {st.weak.map((c) => <Bar key={c.name} c={c} color="#fb7185" />)}
+          </>
+        )}
+      </Panel>
+      <Panel className="p-3 mt-3 text-left">
+        <h3 className="font-bold mb-2">間違えた問題 <span className="text-xs font-normal text-slate-300">（最新{Math.min(20, st.wrong.length)}問 / 最大20問）</span></h3>
+        {st.wrong.length === 0 && <p className="text-sm text-slate-300">間違えた問題はまだありません。</p>}
+        <ul className="space-y-1.5">
+          {st.wrong.map((w, i) => (
+            <li key={w.id} className="rounded-lg bg-black/25">
+              <button onClick={() => setOpen(open === i ? null : i)} className="w-full text-left px-2.5 py-2 flex gap-2 items-start">
+                <span className="text-xs text-slate-400 mt-0.5 w-5 shrink-0">{i + 1}</span>
+                <span className="flex-1 text-sm">{w.question}</span>
+                <span className="text-slate-400">{open === i ? '▲' : '▼'}</span>
+              </button>
+              {open === i && (
+                <div className="px-2.5 pb-2.5 text-sm space-y-1">
+                  {w.choices.map((c, k) => (
+                    <p key={k} className={`rounded px-2 py-1 ${k === w.answer ? 'bg-emerald-500/25 text-emerald-200 font-bold' : k === w.myChoice ? 'bg-red-500/25 text-red-200' : 'text-slate-300'}`}>
+                      {'ABCD'[k]}. {c}{k === w.answer ? '　← 正解' : k === w.myChoice ? '　← あなたの解答' : ''}
+                    </p>
+                  ))}
+                  {w.myChoice === null && <p className="text-xs text-amber-300">時間切れ（未回答）でした</p>}
+                  {w.explanation && <p className="text-xs text-slate-300 pt-1">解説: {w.explanation}</p>}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </>
+  );
+}
+
 const TIERS = ['rookie', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'emperor'];
 
 // プレイヤーカードのカスタマイズ（アイコン・キャラ・バッジ）
@@ -70,6 +125,7 @@ export default function Profile({ profile, user, call }) {
           ))}
         </div>
       </Panel>
+      {user && <Stats user={user} />}
       {user && call && <CardEditor user={user} profile={profile} call={call} />}
       <Panel className="p-3 mt-3 text-left">
         <p className="text-xs text-slate-400">フレンドコード</p>

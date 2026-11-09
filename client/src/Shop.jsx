@@ -1,7 +1,7 @@
 import { sfx } from './audio';
 import { useCallback, useEffect, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, BackHome, NavHot, NavDots, fs, cq } from './Stage';
+import { Stage, Box, BackHome, NavHot, fs, cq } from './Stage';
 import { Avatar, Sand, Dot, RarityTag } from './Parts';
 import ItemPreview from './ItemPreview';
 import { RARITY } from './icons';
@@ -99,8 +99,7 @@ export default function Shop({ user, profile, call, go, summary }) {
         </div>
       </Box>
 
-      <NavHot go={go} y={1355} h={150} />
-      <NavDots summary={summary} y={1372} Dot={Dot} />
+      <NavHot go={go} active="shop" summary={summary} />
     </Stage>
   );
 }

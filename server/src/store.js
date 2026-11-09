@@ -38,16 +38,17 @@ export async function verifyToken(token) {
 
 // ---------- users ----------
 // 最初から全員が持っているアイテム（初期アイコン2種・初期キャラ2種）
+export const DEFAULT_NAME = '名もなき旅人'; // 新規ユーザーの初期名（初回ログイン時に自分で決める）
 export const BUILTIN_IDS = ['default', 'default2', 'char-m', 'char-f'];
 
 const defaults = (uid, name, photoURL, email) => ({
   uid, displayName: name, photoURL, email, pt: 0, mr: null, isMaster: false, wins: 0, losses: 0, games: 0, banned: false,
-  coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: [...BUILTIN_IDS], charId: 'char-m', badgeId: 'auto', nameChanges: 0, joinedAt: Date.now(),
+  coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: [...BUILTIN_IDS], charId: 'char-m', badgeId: 'auto', nameChanges: 0, nameSet: false, catStats: {}, wrongQs: [], joinedAt: Date.now(),
   friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastLoginAt: 0, lastSeenAt: 0,
   statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {},
 });
 
-const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', charId: 'char-m', badgeId: 'auto', ownedItems: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {} };
+const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', charId: 'char-m', badgeId: 'auto', ownedItems: ['default'], nameChanges: 0, nameSet: true, catStats: {}, wrongQs: [], friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {} };
 function norm(u) {
   const o = { ...u };
   for (const [k, v] of Object.entries(FILL)) {
@@ -99,12 +100,12 @@ export async function getOrCreateUser(uid, name, photoURL, email = '') {
       if (Object.keys(patch).length) await ref.set(patch, { merge: true });
       return u;
     }
-    const data = { ...defaults(uid, name, photoURL, email), friendCode: await uniqueCode() };
+    const data = { ...defaults(uid, DEFAULT_NAME, photoURL, email), friendCode: await uniqueCode() };
     const { uid: _u, ...body } = data;
     await ref.set({ ...body, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     return data;
   }
-  if (!mem.has(uid)) mem.set(uid, { ...defaults(uid, name, photoURL, email), friendCode: await uniqueCode() });
+  if (!mem.has(uid)) mem.set(uid, { ...defaults(uid, DEFAULT_NAME, photoURL, email), friendCode: await uniqueCode() });
   return norm(mem.get(uid));
 }
 

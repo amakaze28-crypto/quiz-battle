@@ -8,6 +8,7 @@ import { registerRoom } from './recent.js';
 import { profilePayload } from './profile.js';
 import { getEmperorSet, refreshEmperors } from './emperors.js';
 import { planAnswer, isBot } from './bots.js';
+import { catOf } from './questions.js';
 
 const mean = (arr) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
 const limitSec = () => cfg.questionTimeMs / 1000;
@@ -121,6 +122,14 @@ export class Room {
       const t = a?.correct ? a.adj / 1000 : limit; // 誤答・未回答は60秒扱い
       p.times.push(Math.min(t, limit));
       p.stat.q += 1;
+      if (!p.isBot) { // 分野別の成績と、間違えた問題の記録（人間のみ）
+        const qq = this.questions[c.index];
+        const cat = catOf(qq);
+        p.catAcc = p.catAcc || {}; p.wrongList = p.wrongList || [];
+        const e = p.catAcc[cat] || (p.catAcc[cat] = { n: 0, c: 0 });
+        e.n += 1; if (a?.correct) e.c += 1;
+        if (!a?.correct) p.wrongList.push({ id: qq.id, question: qq.question, choices: qq.choices, answer: qq.answer, myChoice: a ? a.choice : null, explanation: qq.explanation || '', at: Date.now() });
+      }
       if (a) { p.stat.ans += 1; p.stat.time += Math.min(a.adj / 1000, limit); if (a.correct) p.stat.correct += 1; }
       if (a) {
         p.score += a.gain;
@@ -181,6 +190,17 @@ export class Room {
         // bot用の統計(正答率・平均解答秒数)
         next.statQ = (fresh.statQ || 0) + p.stat.q; next.statCorrect = (fresh.statCorrect || 0) + p.stat.correct;
         next.statAns = (fresh.statAns || 0) + p.stat.ans; next.statTime = (fresh.statTime || 0) + p.stat.time;
+        // 分野別の成績（キーは安全な文字に置換、表示名は中に保持）
+        const cs = { ...(fresh.catStats || {}) };
+        for (const [name, v] of Object.entries(p.catAcc || {})) {
+          const k = name.replace(/[.\/\[\]*`~]/g, '_').slice(0, 40);
+          const e = cs[k] || { name, n: 0, c: 0 };
+          cs[k] = { name, n: e.n + v.n, c: e.c + v.c };
+        }
+        next.catStats = cs;
+        // 間違えた問題: 新しい順・同じ問題は最新だけ・最大20問
+        const seen = new Set();
+        next.wrongQs = [...(p.wrongList || []).reverse(), ...(fresh.wrongQs || [])].filter((w) => !seen.has(w.id) && seen.add(w.id)).slice(0, 20);
         await store.updateUser(p.uid, next);
         p.profile = next;
       }

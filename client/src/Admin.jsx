@@ -69,6 +69,10 @@ function Questions({ user }) {
     const to = window.prompt(`移動先のファイル名（既存: ${files.map((f) => f[0]).join(' / ')}）`, fileOf(q));
     if (to && to.trim()) act(() => adminApi(user, '/questions/move', { method: 'POST', body: { ids: [q.id], to: to.trim() } }));
   };
+  const fileCategory = (f) => list.find((q) => fileOf(q) === f && q.category)?.category || f; // 未設定ならファイル名
+  const [catDraft, setCatDraft] = useState('');
+  useEffect(() => { setCatDraft(fileSel === 'all' ? '' : fileCategory(fileSel)); }, [fileSel, list]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveCategory = () => fileAct('category', { file: fileSel, category: catDraft.trim() === fileSel ? '' : catDraft.trim() });
   const renameFile = () => {
     const to = window.prompt(`「${fileSel}」の新しい名前`, fileSel);
     if (to && to.trim() && to.trim() !== fileSel) { fileAct('rename', { from: fileSel, to: to.trim() }); setFileSel(to.trim().slice(0, 40)); }
@@ -94,6 +98,10 @@ function Questions({ user }) {
           <button onClick={() => fileAct('publish', { file: fileSel, published: true })} className={`${btn} bg-emerald-600`}>全部公開</button>
           <button onClick={() => fileAct('publish', { file: fileSel, published: false })} className={`${btn} bg-slate-700`}>全部非公開</button>
           <button onClick={renameFile} className={`${btn} bg-slate-700`}>名前変更</button>
+          <label className="flex items-center gap-1 text-sm text-slate-300 basis-full sm:basis-auto">分野
+            <input className={`${input} !w-40 !py-1`} maxLength={40} value={catDraft} onChange={(e) => setCatDraft(e.target.value)} placeholder="例: 基礎看護学" />
+            <button onClick={saveCategory} className={`${btn} bg-sky-600`}>分野を保存</button>
+          </label>
           <button onClick={() => fileAct('delete', { file: fileSel }, `ファイル「${fileSel}」の問題 ${files.find((f) => f[0] === fileSel)?.[1].n ?? 0}問をすべて削除しますか？`)} className={`${btn} bg-red-600/80 ml-auto`}>ファイルごと削除</button>
         </div>
       )}
@@ -111,7 +119,7 @@ function Questions({ user }) {
             <div className="flex items-start gap-3">
               <span className={`shrink-0 text-xs rounded px-2 py-0.5 ${q.published ? 'bg-emerald-600' : 'bg-slate-600'}`}>{q.published ? '公開' : '非公開'}</span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-sky-300 mb-0.5">📁 {fileOf(q)}</p>
+                <p className="text-xs text-sky-300 mb-0.5">📁 {fileOf(q)}　分野: {q.category || fileOf(q)}</p>
                 <p className="font-semibold">{q.question}</p>
                 <p className="text-sm text-slate-400 mt-1">
                   {q.choices.map((c, i) => <span key={i} className={i === q.answer ? 'text-emerald-400 font-bold mr-3' : 'mr-3'}>{'ABCD'[i]}. {c}</span>)}

@@ -37,10 +37,18 @@ export default function Hud({ profile, summary, onMenu, go }) {
         </>
       )}
 
-      {/* 右上：メール／メニュー（お知らせは廃止） */}
-      <Hot x={782} y={46} w={70} h={64} label="メール" onClick={() => go('mail')} />
-      <Hot x={944} y={46} w={56} h={56} label="メニュー" onClick={onMenu} />
-      {summary?.mail > 0 && <Box x={824} y={40} w={20} h={20}><Dot className="w-full h-full" /></Box>}
+      {/* 右上：メール／メニュー（1つのピルにまとめて、アイコン同士を近づけた） */}
+      <Box x={838} y={42} w={164} h={66} className="rounded-full flex items-center justify-around"
+        style={{ background: 'linear-gradient(180deg,rgba(18,40,82,.88),rgba(8,20,46,.88))', border: `${cq(2)} solid rgba(201,162,74,.75)`, boxShadow: '0 2px 8px rgba(0,0,0,.35)' }}>
+        <button onClick={() => go('mail')} aria-label="メール" className="relative h-full flex-1 grid place-items-center">
+          <svg viewBox="0 0 48 36" style={{ width: cq(44), height: cq(33) }}><rect x="2" y="3" width="44" height="30" rx="5" fill="#f1f3f8" /><path d="M4 7l20 15L44 7" fill="none" stroke="#243a63" strokeWidth="3.4" strokeLinejoin="round" strokeLinecap="round" /></svg>
+          {summary?.mail > 0 && <Dot className="absolute" style={{ top: '14%', right: '14%', width: cq(18), height: cq(18) }} />}
+        </button>
+        <span style={{ width: 1, height: '56%', background: 'rgba(201,162,74,.45)' }} />
+        <button onClick={onMenu} aria-label="メニュー" className="h-full flex-1 grid place-items-center">
+          <svg viewBox="0 0 40 32" style={{ width: cq(38), height: cq(30) }}>{[5, 16, 27].map((y) => <rect key={y} x="3" y={y - 2.5} width="34" height="5" rx="2.5" fill="#f1f3f8" />)}</svg>
+        </button>
+      </Box>
     </>
   );
 }

@@ -35,4 +35,4 @@ export const RarityTag = ({ rarity, className = '' }) => (
   <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold text-black ${className}`} style={{ background: RARITY[rarity]?.color }}>{RARITY[rarity]?.label}</span>
 );
 
-export const Dot = ({ className = '' }) => <span className={`inline-block rounded-full bg-red-500 ring-2 ring-white/80 ${className}`} />;
+export const Dot = ({ className = '', style }) => <span className={`inline-block rounded-full bg-red-500 ring-2 ring-white/80 ${className}`} style={style} />;

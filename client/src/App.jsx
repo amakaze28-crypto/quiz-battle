@@ -9,6 +9,8 @@ import Home from './Home';
 import Game from './Game';
 import Result from './Result';
 import Profile from './Profile';
+import Ranking from './Ranking';
+import NameSetup from './NameSetup';
 import Settings from './Settings';
 import Admin from './Admin';
 import { Mails } from './Pages';
@@ -50,6 +52,9 @@ function Authed({ user }) {
   }, [user, g.setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const logout = () => signOut(auth);
+  // 初めてのログインでは最初に名前を決める
+  const needName = g.profile?.nameSet === false && g.phase !== 'playing' && g.phase !== 'matched';
+  const withGate = (el) => <>{el}{needName && <NameSetup profile={g.profile} call={call} />}</>;
 
   // BGM: マッチ成立後は対戦曲(3曲からランダム)、それ以外はホーム曲
   useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : 'home');
@@ -99,23 +104,24 @@ function Authed({ user }) {
   }
 
   const common = { user, go: setView, summary, refresh };
-  if (view === 'home') return <Home g={g} summary={summary} go={setView} onLogout={logout} />;
-  if (view === 'shop') return <Shop {...common} profile={g.profile} call={call} />;
-  if (view === 'missions') return <Missions {...common} call={call} />;
-  if (view === 'friends') return <Friends {...common} />;
-  if (view === 'gacha') return <Gacha {...common} g={g} call={call} onLogout={logout} />;
+  if (view === 'home') return withGate(<Home g={g} summary={summary} go={setView} onLogout={logout} user={user} />);
+  if (view === 'shop') return withGate(<Shop {...common} profile={g.profile} call={call} />);
+  if (view === 'missions') return withGate(<Missions {...common} call={call} />);
+  if (view === 'friends') return withGate(<Friends {...common} />);
+  if (view === 'gacha') return withGate(<Gacha {...common} g={g} call={call} onLogout={logout} />);
 
   const body = {
     profile: <Profile profile={g.profile} user={user} call={call} />,
+    ranking: <Ranking user={user} />,
     settings: <Settings profile={g.profile} call={call} />,
     mail: <Mails user={user} call={call} onChange={refresh} />,
     admin: g.profile?.isAdmin ? <Admin user={user} /> : null,
   }[view];
 
-  return (
+  return withGate(
     <Layout profile={g.profile} view={view} go={setView} summary={summary} onLogout={logout} wide={view === 'admin'} nav={view !== 'admin'}>
       {body}
-    </Layout>
+    </Layout>,
   );
 }
 

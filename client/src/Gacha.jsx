@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
 import { sfx } from './audio';
-import { Stage, Box, Hot, NavHot, NavDots, fs, cq } from './Stage';
+import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
 import Hud from './Hud';
 import AccountMenu from './AccountMenu';
 import ItemPreview from './ItemPreview';
@@ -146,8 +146,7 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
         {msg && <Box x={70} y={1125} w={884} h={50} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{msg}</Box>}
         {info && coins < cost && <Box x={70} y={1170} w={884} h={46} className="text-center rounded-lg bg-black/55 grid place-items-center" style={{ fontSize: fs(22), color: '#fde68a' }}>コインはミッションやメールで手に入ります</Box>}
 
-        <NavHot go={go} y={1355} h={150} />
-        <NavDots summary={summary} y={1372} Dot={Dot} />
+        <NavHot go={go} active="gacha" summary={summary} />
       </Stage>
       <AccountMenu open={menu} onClose={() => setMenu(false)} anchor="left" profile={profile} go={go} onLogout={onLogout} />
       {result && <Results data={result} onClose={() => setResult(null)} />}

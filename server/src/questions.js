@@ -8,6 +8,9 @@ import { cfg } from './config.js';
 // 問題は「ファイル」（グループ）に分けて管理できる。未指定は「未分類」
 export const fileName = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : '未分類');
 
+// 分野: 未設定なら「ファイル名」が分野名になる。ファイル単位で設定できる
+export const catOf = (q) => (typeof q.category === 'string' && q.category.trim() ? q.category.trim().slice(0, 40) : fileName(q.file));
+
 export function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return { ok: false, error: '形式が不正です' };
   const answer = q.answer ?? q.correctIndex;
@@ -23,6 +26,7 @@ export function normalizeQuestion(q) {
       question, choices: q.choices.map((c) => c.trim()), answer,
       explanation: typeof q.explanation === 'string' ? q.explanation.trim() : '',
       file: fileName(q.file),
+      category: typeof q.category === 'string' ? q.category.trim().slice(0, 40) : '',
     },
   };
 }

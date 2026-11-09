@@ -5,7 +5,8 @@ import { isBot } from './bots.js';
 import * as presence from './presence.js';
 import { settings, RARITIES } from './settings.js';
 import { profilePayload } from './profile.js';
-import { rankInfo, ratingValue } from './rank.js';
+import { rankInfo, ratingValue, TIERS, MASTER_START } from './rank.js';
+import { cfg } from './config.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
 
@@ -128,7 +129,7 @@ export function mountApi(app) {
   // ---- フレンド ----
   const friendView = (f) => ({
     uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto',
-    rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
+    rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), pt: f.pt || 0, mr: f.mr ?? null, isMaster: !!f.isMaster, online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
 
@@ -334,10 +335,12 @@ export function mountApi(app) {
     const u = await fresh(req);
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
     if (name.length < 1 || name.length > 16) return res.status(400).json({ error: '表示名は1〜16文字で入力してください' });
-    if (name === u.displayName) return res.status(400).json({ error: '現在と同じ名前です' });
-    const cost = u.nameChanges === 0 ? 0 : settings().renameCost;
+    // 初回の名前設定（nameSet=false）は無料で、改名回数に数えない
+    const initial = u.nameSet === false;
+    if (!initial && name === u.displayName) return res.status(400).json({ error: '現在と同じ名前です' });
+    const cost = initial || u.nameChanges === 0 ? 0 : settings().renameCost;
     if (u.coins < cost) return res.status(400).json({ error: `コインが足りません（${cost}コイン必要）` });
-    await store.updateUser(u.uid, { displayName: name, nameChanges: u.nameChanges + 1, coins: u.coins - cost });
+    await store.updateUser(u.uid, initial ? { displayName: name, nameSet: true } : { displayName: name, nameChanges: u.nameChanges + 1, coins: u.coins - cost });
     res.json(withProfile(req, await fresh(req)));
   }));
 
@@ -362,6 +365,46 @@ export function mountApi(app) {
       createdAt: Date.now(), resolved: false,
     });
     res.json({ ok: true });
+  }));
+
+  // ---- ランクの詳細（ポイント範囲） ----
+  r.get('/ranks', wrap(async (_req, res) => {
+    const rows = [];
+    TIERS.forEach((t, i) => {
+      const end = i + 1 < TIERS.length ? TIERS[i + 1].start - 1 : MASTER_START - 1;
+      for (let sub = 5; sub >= 1; sub--) {
+        const from = t.start + (5 - sub) * t.width;
+        rows.push({ key: t.key, label: `${t.name}${sub}`, from, to: sub === 1 ? end : from + t.width - 1 });
+      }
+    });
+    res.json({ rows, masterStart: MASTER_START, emperorCount: cfg.emperorCount });
+  }));
+
+  // ---- ランキング（マスター以上の上位100人 / フレンド） ----
+  let topCache = { at: 0, list: [] };
+  r.get('/ranking', wrap(async (req, res) => {
+    const u = await fresh(req);
+    if (Date.now() - topCache.at > 30_000) topCache = { at: Date.now(), list: await store.getTopMasters(100) };
+    const emperors = getEmperorSet();
+    const top = topCache.list.map((x, i) => ({
+      place: i + 1, uid: x.uid, name: x.displayName, iconId: x.iconId || 'default', frameId: x.frameId || 'none',
+      mr: x.mr, rank: rankInfo(x, emperors), me: x.uid === u.uid,
+    }));
+    const myPlace = top.find((x) => x.me)?.place ?? null;
+    const friends = [...(await viewList(u.friends)), friendView(u)].sort((a, b) => b.rating - a.rating).map((f, i) => ({ ...f, place: i + 1, me: f.uid === u.uid }));
+    res.json({ me: { ...friendView(u), place: myPlace }, top, friends });
+  }));
+
+  // ---- 成績（分野別の得意・苦手）と、間違えた問題（最新20問） ----
+  r.get('/stats', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const cats = Object.values(u.catStats || {}).filter((x) => x.n >= 3).map((x) => ({ name: x.name, n: x.n, c: x.c, rate: Math.round((x.c / x.n) * 100) }))
+      .sort((a, b) => b.rate - a.rate || b.n - a.n);
+    const k = cats.length;
+    // 分野が1つだけのときは、正答率で得意/苦手を決める。複数あるときは、正答率の高い順に得意・低い順に苦手
+    const strong = k === 1 ? cats.filter((c) => c.rate >= 50) : cats.slice(0, Math.min(3, Math.ceil(k / 2)));
+    const weak = k === 1 ? cats.filter((c) => c.rate < 50) : cats.slice(strong.length).slice(-3).reverse();
+    res.json({ cats, strong, weak, wrong: (u.wrongQs || []).slice(0, 20) });
   }));
 
   // ---- 問題の通報（難易度がおかしい / 看護に関係ない / 答えが間違っている） ----

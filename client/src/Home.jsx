@@ -1,15 +1,17 @@
 import { sfx, BATTLE_TRACKS, getBattleBgm, setBattleBgm, previewBgm, stopPreview } from './audio';
 import { Panel, Btn } from './Ui';
 import { useState } from 'react';
-import { Stage, Box, Hot, NavHot, NavDots, fs } from './Stage';
+import { Stage, Box, Hot, NavHot, fs } from './Stage';
 import AccountMenu from './AccountMenu';
 import Hud from './Hud';
 import { Dot } from './Parts';
+import RankDetail from './RankDetail';
 
-export default function Home({ g, summary, go, onLogout }) {
+export default function Home({ g, summary, go, onLogout, user }) {
   const { profile, conn, phase, queue, error } = g;
   const [menu, setMenu] = useState(false);
   const [detail, setDetail] = useState(false);
+  const [rankOpen, setRankOpen] = useState(false);
   const [bgm, setBgm] = useState(getBattleBgm());
   const closeDetail = () => { stopPreview(); setDetail(false); };
   const online = conn === 'online' && profile;
@@ -18,12 +20,20 @@ export default function Home({ g, summary, go, onLogout }) {
     <>
       <Stage bg="/ui/home.jpg">
         <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
+        {/* ランクの詳細 */}
+        <Hot x={262} y={58} w={474} h={178} label="ランクの詳細" onClick={() => setRankOpen(true)} />
         {conn !== 'online' && (
           <Box x={262} y={304} w={488} h={60} className="rounded-lg bg-black/60 px-3 flex items-center" style={{ fontSize: fs(21), color: '#fcd34d' }}>
             {conn === 'error' ? `接続エラー: ${error}` : 'サーバーに接続中…（起動に最大1分ほどかかります）'}
           </Box>
         )}
 
+        {/* ランキング（ランクマッチの約1/5の大きさ・左上） */}
+        <Box x={68} y={780} w={206} h={55}>
+          <button onClick={() => go('ranking')} aria-label="ランキング" className="w-full h-full active:scale-95 transition-transform">
+            <img src="/ui/ranking.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.5))' }} />
+          </button>
+        </Box>
         <Hot x={65} y={850} w={890} h={290} label="ランクマッチ" onClick={() => { if (online) { sfx('queue'); g.joinQueue(); } }} />
         {/* 戦闘BGMの設定（音符） */}
         <Box x={852} y={1156} w={104} h={104}>
@@ -35,11 +45,11 @@ export default function Home({ g, summary, go, onLogout }) {
           <Box x={100} y={1146} w={820} h={44} className="text-center" style={{ fontSize: fs(24), color: '#fca5a5', textShadow: '0 1px 4px #000' }}>{error}</Box>
         )}
 
-        <NavHot go={go} y={1355} h={150} />
-        <NavDots summary={summary} y={1372} Dot={Dot} />
+        <NavHot go={go} active="home" summary={summary} />
 
+        {rankOpen && user && <RankDetail user={user} profile={profile} onClose={() => setRankOpen(false)} />}
         {detail && (
-          <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 p-4" onClick={closeDetail}>
+          <div className="stage-overlay z-20 flex items-center justify-center bg-black/60 p-4" onClick={closeDetail}>
             <Panel className="w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-center font-bold text-lg mb-1">♪ 戦闘BGM</h2>
               <p className="text-center text-xs text-slate-300 mb-3">戦闘中に流れるBGMを選べます（選ぶと少しだけ試聴できます）</p>
@@ -56,7 +66,7 @@ export default function Home({ g, summary, go, onLogout }) {
           </div>
         )}
         {phase === 'queue' && (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-black/60">
+          <div className="stage-overlay z-10 grid place-items-center bg-black/60">
             <div className="rounded-2xl bg-[#0b1a36] border border-[#c9a24a]/70 px-8 py-6 text-center text-white">
               <p className="animate-pulse mb-2 font-bold">マッチング中…</p>
               <p className="text-sm text-slate-300 mb-4">{queue ? `${queue.waitSec}秒（待機${queue.size}人）` : ''}</p>

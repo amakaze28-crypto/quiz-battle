@@ -1,6 +1,6 @@
 import express from 'express';
 import * as store from './store.js';
-import { normalizeQuestion, reloadQuestions, fileName } from './questions.js';
+import { normalizeQuestion, reloadQuestions, fileName, catOf } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { saveSettings, settings } from './settings.js';
@@ -36,10 +36,18 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.post('/questions', wrap(async (req, res) => {
     const n = normalizeQuestion(req.body);
     if (!n.ok) return res.status(400).json({ error: n.error });
-    const [created] = await store.createQuestions([{ ...n.value, published: !!req.body.published }]);
+    const cats = await fileCats();
+    const [created] = await store.createQuestions([{ ...n.value, category: n.value.category || cats.get(n.value.file) || '', published: !!req.body.published }]);
     await reloadQuestions();
     res.json({ question: created });
   }));
+
+  // ファイルごとの分野（そのファイルで設定済みの分野。なければ空=ファイル名）
+  const fileCats = async () => {
+    const m = new Map();
+    for (const q of await store.listQuestions()) if (q.category && !m.has(fileName(q.file))) m.set(fileName(q.file), q.category);
+    return m;
+  };
 
   // 先に定義（:id より前）
   r.post('/questions/import', wrap(async (req, res) => {
@@ -47,12 +55,14 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (!list) return res.status(400).json({ error: '"questions" に配列を指定してください' });
     const existing = new Set((await store.listQuestions()).map((q) => q.question));
     const toCreate = []; const errors = []; let skipped = 0;
+    const cats = await fileCats();
     list.forEach((raw, i) => {
       const n = normalizeQuestion(raw);
       if (!n.ok) return errors.push({ index: i, message: n.error });
       if (existing.has(n.value.question)) { skipped += 1; return; }
       existing.add(n.value.question);
-      toCreate.push({ ...n.value, file: fileName(raw?.file ?? req.body.file), published: !!req.body.published });
+      const file = fileName(raw?.file ?? req.body.file);
+      toCreate.push({ ...n.value, file, category: n.value.category || cats.get(file) || '', published: !!req.body.published });
     });
     if (toCreate.length) await store.createQuestions(toCreate);
     await reloadQuestions();
@@ -65,7 +75,16 @@ export function mountAdmin(app, { io, matchmaker }) {
     const from = fileName(req.body.from); const to = fileName(req.body.to);
     const list = await inFile(from);
     for (const q of list) await store.updateQuestion(q.id, { file: to });
+    await reloadQuestions();
     res.json({ moved: list.length });
+  }));
+  // ファイル単位で分野を設定（空にするとファイル名に戻る）
+  r.post('/questions/files/category', wrap(async (req, res) => {
+    const list = await inFile(fileName(req.body.file));
+    const category = typeof req.body.category === 'string' ? req.body.category.trim().slice(0, 40) : '';
+    for (const q of list) await store.updateQuestion(q.id, { category });
+    await reloadQuestions();
+    res.json({ changed: list.length });
   }));
   r.post('/questions/files/publish', wrap(async (req, res) => {
     const list = await inFile(fileName(req.body.file));
@@ -83,7 +102,9 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.post('/questions/move', wrap(async (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
     const to = fileName(req.body.to);
-    for (const id of ids) await store.updateQuestion(String(id), { file: to });
+    const cat = (await fileCats()).get(to) || '';
+    for (const id of ids) await store.updateQuestion(String(id), { file: to, category: cat });
+    await reloadQuestions();
     res.json({ moved: ids.length });
   }));
 
@@ -92,6 +113,7 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (!n.ok) return res.status(400).json({ error: n.error });
     const fields = { ...n.value };
     if (typeof req.body.file !== 'string') delete fields.file; // 指定がなければファイルは変えない
+    if (typeof req.body.category !== 'string') delete fields.category;
     if (typeof req.body.published === 'boolean') fields.published = req.body.published;
     if (!(await store.updateQuestion(req.params.id, fields))) return res.status(404).json({ error: '問題が見つかりません' });
     await reloadQuestions();

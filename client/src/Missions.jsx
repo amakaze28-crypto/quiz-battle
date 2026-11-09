@@ -1,7 +1,7 @@
 import { sfx } from './audio';
 import { useEffect, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, BackHome, NavHot, NavDots, fs } from './Stage';
+import { Stage, Box, BackHome, NavHot, fs } from './Stage';
 import { Dot } from './Parts';
 
 const ROWS = [346, 497, 649, 801, 953];
@@ -107,8 +107,7 @@ export default function Missions({ user, call, go, summary, refresh }) {
         );
       })()}
 
-      <NavHot go={go} y={1365} h={140} />
-      <NavDots summary={summary} y={1372} Dot={Dot} />
+      <NavHot go={go} active="missions" summary={summary} />
     </Stage>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, Hot, BackHome, NavHot, NavDots, fs } from './Stage';
+import { Stage, Box, Hot, BackHome, NavHot, fs } from './Stage';
 import { Avatar, Banner, Dot } from './Parts';
 import RankBadge from './RankBadge';
 import PlayerCard from './PlayerCard';
@@ -156,10 +156,9 @@ export default function Friends({ user, go, summary, refresh }) {
           style={{ background: 'linear-gradient(180deg,#13264d,#0a1630)', border: '2px solid #c9a24a99', fontSize: fs(25) }}>フレンド一括削除</button>
       </Box>
 
-      <NavHot go={go} y={1360} h={145} />
-      <NavDots summary={summary} y={1372} Dot={Dot} />
+      <NavHot go={go} active="friends" summary={summary} />
     {card && (
-        <div className="absolute inset-0 z-30 grid place-items-center bg-black/70 p-[4cqw]" onClick={() => setCard(null)}>
+        <div className="stage-overlay z-30 grid place-items-center bg-black/70 p-[4cqw]" onClick={() => setCard(null)}>
           <div style={{ width: '62cqw' }}><PlayerCard c={card} /></div>
         </div>
       )}
