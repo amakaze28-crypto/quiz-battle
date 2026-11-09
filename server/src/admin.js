@@ -5,9 +5,12 @@ import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { saveSettings, settings } from './settings.js';
 import * as missions from './missions.js';
+import { listGachas, normalizeGacha, NORMAL_ID } from './gachaDefs.js';
+import * as sounds from './sounds.js';
 
 export function mountAdmin(app, { io, matchmaker }) {
   const r = express.Router();
+  r.use('/sounds', express.json({ limit: '18mb' })); // 音源は大きいので先に専用の上限で読む
   r.use(express.json({ limit: '3mb' }));
 
   r.use(async (req, res, next) => {
@@ -246,6 +249,62 @@ export function mountAdmin(app, { io, matchmaker }) {
     await store.colSet('items', req.params.id, patch);
     res.json({ ok: true });
   }));
+
+  // ---- セット（レジェンダリーで出る、キャラ・アイコンなどの一式） ----
+  r.get('/sets', wrap(async (_req, res) => {
+    res.json({ sets: (await store.colList('sets')).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) });
+  }));
+  const setBody = async (b) => {
+    const name = String(b.name || '').trim().slice(0, 30);
+    if (!name) throw new Error('セット名を入力してください');
+    const all = new Set((await store.colList('items')).map((i) => i.id));
+    const itemIds = [...new Set(Array.isArray(b.itemIds) ? b.itemIds : [])].filter((x) => all.has(x)).slice(0, 12);
+    if (!itemIds.length) throw new Error('セットに入れるアイテムを1つ以上選んでください');
+    return { name, itemIds, inGacha: b.inGacha !== false };
+  };
+  r.post('/sets', wrap(async (req, res) => {
+    try { res.json({ id: await store.colAdd('sets', { ...(await setBody(req.body)), createdAt: Date.now() }) }); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  r.put('/sets/:id', wrap(async (req, res) => {
+    if (!(await store.colGet('sets', req.params.id))) return res.status(404).json({ error: 'セットが見つかりません' });
+    try { await store.colSet('sets', req.params.id, await setBody(req.body)); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  r.delete('/sets/:id', wrap(async (req, res) => { await store.colDel('sets', req.params.id); res.json({ ok: true }); }));
+
+  // ---- ガチャ（通常 / 期間限定。名前・バナー・期間・中身を設定） ----
+  r.get('/gachas', wrap(async (_req, res) => {
+    res.json({ gachas: (await listGachas()).map((g) => ({ ...g, banner: g.banner ? `/gacha-banner/${g.id}?v=${g.updatedAt}` : '' })) });
+  }));
+  const okBanner = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 900_000;
+  r.post('/gachas', wrap(async (req, res) => {
+    const g = normalizeGacha('x', { ...req.body, kind: 'limited' });
+    if (req.body.banner && !okBanner(req.body.banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます' });
+    const { id, ...data } = g;
+    res.json({ id: await store.colAdd('gachas', { ...data, banner: req.body.banner || '', kind: 'limited', createdAt: Date.now(), updatedAt: Date.now() }) });
+  }));
+  r.put('/gachas/:id', wrap(async (req, res) => {
+    const id = req.params.id;
+    const cur = (await listGachas()).find((x) => x.id === id);
+    if (!cur) return res.status(404).json({ error: 'ガチャが見つかりません' });
+    const b = req.body;
+    const banner = b.banner === undefined ? cur.banner : b.banner; // '' で削除
+    if (banner && banner !== cur.banner && !okBanner(banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます' });
+    const { id: _i, ...next } = normalizeGacha(id, { ...cur, ...b, banner, kind: id === NORMAL_ID ? 'normal' : 'limited' });
+    await store.colSet('gachas', id, { ...next, createdAt: cur.createdAt || Date.now(), updatedAt: Date.now() });
+    res.json({ ok: true });
+  }));
+  r.delete('/gachas/:id', wrap(async (req, res) => {
+    if (req.params.id === NORMAL_ID) return res.status(400).json({ error: '通常ガチャは削除できません' });
+    await store.colDel('gachas', req.params.id);
+    res.json({ ok: true });
+  }));
+
+  // ---- 音源（場面ごとに差し替え） ----
+  r.get('/sounds', wrap(async (_req, res) => res.json({ slots: sounds.SLOTS, sounds: await sounds.listSounds() })));
+  r.put('/sounds/:slot', wrap(async (req, res) => {
+    try { await sounds.saveSound(req.params.slot, req.body.name, req.body.data); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  r.delete('/sounds/:slot', wrap(async (req, res) => { await sounds.deleteSound(req.params.slot); res.json({ ok: true }); }));
 
   // ---- 問題の通報（問題ごとに集計） ----
   const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };

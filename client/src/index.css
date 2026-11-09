@@ -41,3 +41,6 @@ body { background: transparent; color: #fff; overscroll-behavior: none; -webkit-
 
 /* ステージ画面の上に重ねるダイアログ。下のタスクバー(BottomNav)に隠れないよう、その分だけ空ける */
 .stage-overlay { position: absolute; left: 0; right: 0; top: 0; bottom: calc(min(100vw, 100dvh * 2 / 3) * 0.187); }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

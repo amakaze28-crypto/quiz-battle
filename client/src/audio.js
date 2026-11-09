@@ -1,7 +1,35 @@
 // BGM・効果音。ブラウザの自動再生制限のため、最初のタップ以降に再生が始まる。
 // 音源は public/audio/ の同名ファイルを差し替えるだけで変更できる（例: bgm-home.mp3 = ホームのBGM）。
 const KEY = 'quiz.audio';
-const BGM = { title: '/audio/bgm-title.mp3', home: '/audio/bgm-home.mp3', battle1: '/audio/bgm-battle1.mp3', battle2: '/audio/bgm-battle2.mp3', battle3: '/audio/bgm-battle3.mp3' };
+import { SERVER_URL } from './api';
+const BGM = { gacha: '/audio/bgm-gacha.mp3', title: '/audio/bgm-title.mp3', home: '/audio/bgm-home.mp3', battle1: '/audio/bgm-battle1.mp3', battle2: '/audio/bgm-battle2.mp3', battle3: '/audio/bgm-battle3.mp3' };
+// 管理画面で差し替えられた音源（slot → URL）。なければ同梱ファイルを使う
+let overrides = {};
+const seSlot = (n) => (n === 'gacha' ? 'gacha_se' : n);
+const bgmUrl = (n) => overrides[n] || BGM[n];
+const seUrl = (n) => overrides[seSlot(n)] || `/audio/se-${n}.mp3`;
+export const SOUND_SLOTS = [
+  ['title', 'タイトル画面', 'bgm'], ['home', 'ホーム・ショップ・ミッションなど', 'bgm'], ['gacha', 'ガチャ画面', 'bgm'],
+  ['battle1', '対戦 曲1', 'bgm'], ['battle2', '対戦 曲2', 'bgm'], ['battle3', '対戦 曲3', 'bgm'],
+  ['tap', 'ボタンを押す', 'se'], ['queue', 'マッチング開始', 'se'], ['match', 'マッチング成立', 'se'], ['question', '問題表示', 'se'],
+  ['correct', '正解', 'se'], ['wrong', '不正解', 'se'], ['secondary', 'Secondary発動', 'se'], ['tick', '残り時間', 'se'],
+  ['win', '勝利', 'se'], ['lose', '敗北', 'se'], ['ok', '決定・完了', 'se'], ['coin', 'コイン獲得', 'se'], ['gacha_se', 'ガチャを引く', 'se'], ['rare', 'レア獲得', 'se'],
+];
+export async function loadSoundOverrides() {
+  try {
+    const list = await (await fetch(`${SERVER_URL}/sounds`)).json();
+    const next = {};
+    for (const [slot, v] of Object.entries(list)) next[slot] = `${SERVER_URL}/sound/${slot}?v=${v.v || 0}`;
+    const changed = JSON.stringify(next) !== JSON.stringify(overrides);
+    overrides = next;
+    if (changed) {
+      for (const k of Object.keys(loaded)) delete loaded[k];
+      for (const k of Object.keys(seBase)) delete seBase[k];
+      if (cur) stopCur(0);
+      apply();
+    }
+  } catch { /* 取得できなければ同梱の音源を使う */ }
+}
 const BATTLE = ['battle1', 'battle2', 'battle3'];
 const SE = ['tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha', 'rare', 'win', 'lose', 'tick'];
 
@@ -28,7 +56,7 @@ const getCtx = () => {
 const loaded = {};
 function loadBgm(name) {
   if (!loaded[name]) {
-    loaded[name] = fetch(BGM[name]).then((r) => r.arrayBuffer()).then((ab) => new Promise((res, rej) => getCtx().decodeAudioData(ab, res, rej))).then((buffer) => {
+    loaded[name] = fetch(bgmUrl(name)).then((r) => r.arrayBuffer()).then((ab) => new Promise((res, rej) => getCtx().decodeAudioData(ab, res, rej))).then((buffer) => {
       const th = 0.004; const n = buffer.length; const ch = [...Array(buffer.numberOfChannels)].map((_, i) => buffer.getChannelData(i));
       const loud = (i) => ch.some((d) => Math.abs(d[i]) > th);
       let s = 0; while (s < n - 1 && !loud(s)) s += 1;
@@ -104,7 +132,7 @@ export const setBattleBgm = (v) => { try { localStorage.setItem(BKEY, v); } catc
 // opt.vol: 音量を指定（設定画面の確認音用）/ opt.force: オフでも鳴らす
 export function sfx(name, opt = {}) {
   if ((!state.se && !opt.force) || !unlocked || !SE.includes(name)) return;
-  if (!seBase[name]) { seBase[name] = new Audio(`/audio/se-${name}.mp3`); seBase[name].preload = 'auto'; }
+  if (!seBase[name]) { seBase[name] = new Audio(seUrl(name)); seBase[name].preload = 'auto'; }
   const a = seBase[name].cloneNode();
   a.volume = Math.min(1, opt.vol ?? state.seVol);
   a.play().catch(() => {});
@@ -134,5 +162,6 @@ export function initAudio() {
     if (b && !b.disabled && !b.dataset.nosfx) sfx('tap');
   }, true);
   document.addEventListener('visibilitychange', () => { hidden = document.hidden; apply(); });
-  SE.forEach((n) => { seBase[n] = new Audio(`/audio/se-${n}.mp3`); seBase[n].preload = 'auto'; });
+  SE.forEach((n) => { seBase[n] = new Audio(seUrl(n)); seBase[n].preload = 'auto'; });
+  loadSoundOverrides();
 }

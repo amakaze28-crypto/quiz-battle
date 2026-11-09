@@ -1,22 +1,53 @@
 import { useEffect, useState } from 'react';
-import { callApi } from './api';
-import { sfx } from './audio';
+import { callApi, SERVER_URL } from './api';
 import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
 import Hud from './Hud';
 import AccountMenu from './AccountMenu';
 import ItemPreview from './ItemPreview';
 import { Coin, Sand, Dot, RarityTag } from './Parts';
-import { RARITY, RARITIES, TYPE_LABEL } from './icons';
+import { RARITY, RARITIES, TYPE_LABEL, itemSrc, iconSrc, charSrc } from './icons';
+
+const srcOf = (i) => (i.type === 'icon' ? iconSrc(i.id) : i.type === 'character' ? charSrc(i.id) : itemSrc(i.id));
+const abs = (u) => new URL(u, window.location.href).href;
+const DOVE_R = { common: 'R', uncommon: 'R', rare: 'SR', epic: 'SR', legendary: 'SSR' };
+let doveLoad = null;
+// 演出（dove-gacha.js）は初回だけ読み込む
+const loadDove = () => {
+  if (window.DoveGacha) return Promise.resolve();
+  if (!doveLoad) doveLoad = new Promise((res, rej) => {
+    window.DOVE_GACHA_BACKGROUND = '/ui/dove-world.jpg';
+    const el = document.createElement('script'); el.src = '/dove-gacha.js'; el.onload = res; el.onerror = () => { doveLoad = null; rej(new Error('演出を読み込めませんでした')); };
+    document.head.append(el);
+  });
+  return doveLoad;
+};
+const doveResults = (results) => results.map((r, i) => {
+  if (r.kind === 'item') return { id: `${i}-${r.item.id}`, name: r.item.name, rarity: DOVE_R[r.item.rarity], image: abs(srcOf(r.item)), description: `${TYPE_LABEL[r.item.type]}　${r.duplicate ? `被り → 砂 +${r.sand}` : 'NEW!'}` };
+  if (r.kind === 'set') return { id: `${i}-${r.set.id}`, name: r.set.name, rarity: 'SSR', images: r.items.map((x) => abs(srcOf(x))), description: `セット（${r.items.length}点）${r.sand ? `　被り分の砂 +${r.sand}` : ''}` };
+  return { id: `${i}-sand`, name: `魔法の砂 +${r.sand}`, rarity: DOVE_R[r.rarity], image: abs('/ui/sand.png'), description: '' };
+});
+const rarityOfResult = (r) => (r.kind === 'item' ? r.item.rarity : r.kind === 'set' ? 'legendary' : r.rarity);
 
 const panel = { background: 'linear-gradient(180deg,rgba(15,33,71,.92),rgba(10,21,48,.92))', border: '3px solid #c9a24a' };
 
 function ResultCard({ r, i }) {
-  const color = r.kind === 'item' ? RARITY[r.item.rarity].color : RARITY[r.rarity].color;
-  const strong = (r.kind === 'item' ? r.item.rarity : r.rarity) === 'legendary' || (r.kind === 'item' && r.item.rarity === 'epic');
+  const rar = rarityOfResult(r);
+  const color = RARITY[rar].color;
+  const strong = rar === 'legendary' || rar === 'epic';
   return (
     <div className={`${strong ? 'glow-card' : 'pop-in'} rounded-xl p-2 flex flex-col items-center text-center bg-[#0f1c38]`}
       style={{ '--c': color, border: `3px solid ${color}`, animationDelay: `${i * 0.12}s` }}>
-      {r.kind === 'item' ? (
+      {r.kind === 'set' ? (
+        <>
+          <RarityTag rarity="legendary" className="self-start" />
+          <div className="my-2 w-full grid grid-cols-2 gap-1 justify-items-center">
+            {r.items.slice(0, 4).map((it) => <ItemPreview key={it.id} item={it} size="30px" />)}
+          </div>
+          <p className="text-xs font-bold text-white truncate w-full">{r.set.name}</p>
+          <p className="text-[10px] text-slate-300">セット（{r.items.length}点）</p>
+          {r.sand ? <p className="mt-1 text-[11px] text-amber-300 font-bold">被り分 → 砂 +{r.sand}</p> : <p className="mt-1 text-[11px] text-emerald-300 font-extrabold">NEW!</p>}
+        </>
+      ) : r.kind === 'item' ? (
         <>
           <RarityTag rarity={r.item.rarity} className="self-start" />
           <div className="my-2 w-full flex justify-center"><ItemPreview item={r.item} size="64px" /></div>
@@ -41,7 +72,7 @@ function ResultCard({ r, i }) {
 function Results({ data, onClose }) {
   const [step, setStep] = useState(0);
   useEffect(() => { const t = setTimeout(() => setStep(1), data.results.length * 120 + 500); return () => clearTimeout(t); }, [data]);
-  const best = data.results.reduce((m, r) => Math.max(m, RARITIES.indexOf(r.kind === 'item' ? r.item.rarity : r.rarity)), 0);
+  const best = data.results.reduce((m, r) => Math.max(m, RARITIES.indexOf(rarityOfResult(r))), 0);
   return (
     <div className="fixed inset-0 z-50 bg-black/80 overflow-y-auto p-4" onClick={step ? onClose : undefined}>
       <div className="max-w-md mx-auto text-white py-6" onClick={(e) => e.stopPropagation()}>
@@ -79,7 +110,7 @@ function RatesModal({ info, onClose }) {
         <ul className="space-y-1.5">
           {info.pool.map((i) => (
             <li key={i.id} className="flex items-center gap-2 text-sm">
-              <RarityTag rarity={i.rarity} /><span className="truncate flex-1">{i.name}</span><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span>
+              <RarityTag rarity={i.rarity} /><span className="truncate flex-1">{i.name}</span><span className="text-xs text-slate-400">{i.type === 'set' ? `セット${i.items.length}点` : TYPE_LABEL[i.type]}</span>
               {i.owned && <span className="text-xs text-emerald-400">所持</span>}
             </li>
           ))}
@@ -93,26 +124,33 @@ function RatesModal({ info, onClose }) {
 export default function Gacha({ user, g, call, go, summary, onLogout }) {
   const { profile } = g;
   const [menu, setMenu] = useState(false);
+  const [list, setList] = useState([]);
+  const [gid, setGid] = useState('normal');
   const [info, setInfo] = useState(null);
   const [rates, setRates] = useState(false);
   const [result, setResult] = useState(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { callApi(user, '/gacha/info').then(setInfo).catch((e) => setMsg(e.message)); }, [user, result]);
+  useEffect(() => { callApi(user, '/gacha/list').then((d) => { setList(d.gachas); if (!d.gachas.some((x) => x.id === gid)) setGid('normal'); }).catch((e) => setMsg(e.message)); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setInfo(null); callApi(user, `/gacha/info?id=${encodeURIComponent(gid)}`).then(setInfo).catch((e) => setMsg(e.message)); }, [user, gid, result]);
 
   const pull = async (count) => {
     if (busy) return;
     setBusy(true); setMsg('');
     try {
-      const r = await call('/gacha/pull', { method: 'POST', body: { count } });
-      const best = r.results.reduce((m, x) => Math.max(m, RARITIES.indexOf(x.kind === 'item' ? x.item.rarity : x.rarity)), 0);
-      sfx('gacha'); setTimeout(() => sfx(best >= 3 ? 'rare' : 'ok'), 650);
+      const r = await call('/gacha/pull', { method: 'POST', body: { count, id: gid } });
+      // 抽選・支払いはサーバーで確定済み。ここからは演出だけ
+      try {
+        await loadDove();
+        await window.DoveGacha.play({ results: doveResults(r.results), sound: true });
+      } catch (e) { console.error(e); }
       setResult(r);
     } catch (e) { setMsg(e.message); }
     setBusy(false);
   };
 
+  const cur = list.find((x) => x.id === gid);
   const cost = info?.cost ?? 0;
   const coins = profile?.coins ?? 0;
   const Btn = ({ x, count, label }) => (
@@ -125,21 +163,42 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
       </button>
     </Box>
   );
+  const until = cur?.kind === 'limited' && cur.endAt ? `〜 ${new Date(cur.endAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} まで` : '';
 
   return (
     <>
       <Stage bg="/ui/gacha.jpg">
         <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
 
-        <Box x={110} y={330} w={804} h={440} className="rounded-2xl flex flex-col items-center justify-center text-center" style={panel}>
-          <p style={{ fontSize: fs(58), fontWeight: 900, color: '#fff4d2', textShadow: '0 3px 8px #000' }}>魔法のガチャ</p>
-          <div className="relative my-[2cqw]" style={{ width: '24cqw', height: '24cqw' }}>
-            <div className="absolute inset-0 rounded-full" style={{ border: '3px dashed #e0b64f', animation: 'spin 14s linear infinite' }} />
-            <img src="/ui/sand.png" alt="" className="absolute inset-[14%] w-[72%] h-[72%] object-contain" draggable={false} />
-          </div>
-          <p style={{ fontSize: fs(25), color: '#c9d6f2' }}>アイコン・フレーム・バナー・魔法の砂が手に入る！</p>
-          <button onClick={() => setRates(true)} disabled={!info} className="mt-[1.6cqw] underline text-sky-300" style={{ fontSize: fs(24) }}>提供割合を見る</button>
+        {list.length > 1 && (
+          <Box x={70} y={304} w={884} h={62} className="flex gap-[1.2cqw] overflow-x-auto no-scrollbar">
+            {list.map((x) => (
+              <button key={x.id} onClick={() => setGid(x.id)} className="shrink-0 rounded-xl px-[2.4cqw] whitespace-nowrap"
+                style={{ fontSize: fs(27), fontWeight: 800, color: x.id === gid ? '#2a1a00' : '#fff4d2', background: x.id === gid ? 'linear-gradient(180deg,#ffe9a8,#e0b64f)' : 'rgba(10,21,48,.85)', border: '3px solid #c9a24a', maxWidth: '60cqw', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {x.kind === 'limited' ? '⏳ ' : ''}{x.name}
+              </button>
+            ))}
+          </Box>
+        )}
+
+        <Box x={110} y={382} w={804} h={410} className="rounded-2xl overflow-hidden relative flex flex-col items-center justify-center text-center" style={panel}>
+          {cur?.hasBanner ? (
+            <img src={`${SERVER_URL}${cur.banner}`} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <>
+              <p style={{ fontSize: fs(54), fontWeight: 900, color: '#fff4d2', textShadow: '0 3px 8px #000', padding: '0 3cqw' }}>{cur?.name || '魔法のガチャ'}</p>
+              <div className="relative my-[2cqw]" style={{ width: '22cqw', height: '22cqw' }}>
+                <div className="absolute inset-0 rounded-full" style={{ border: '3px dashed #e0b64f', animation: 'spin 14s linear infinite' }} />
+                <img src="/ui/sand.png" alt="" className="absolute inset-[14%] w-[72%] h-[72%] object-contain" draggable={false} />
+              </div>
+              <p style={{ fontSize: fs(24), color: '#c9d6f2' }}>キャラ・アイコン・フレーム・バナー・魔法の砂が手に入る！</p>
+            </>
+          )}
+          {cur?.kind === 'limited' && <span className="absolute left-[2cqw] top-[2cqw] rounded-full px-[2.5cqw] py-[0.6cqw] font-extrabold bg-rose-600 text-white" style={{ fontSize: fs(24) }}>期間限定</span>}
+          {until && <span className="absolute left-[2cqw] bottom-[2cqw] rounded-lg px-[2cqw] py-[0.5cqw] bg-black/65 text-amber-200 font-bold" style={{ fontSize: fs(23) }}>{until}</span>}
+          <button onClick={() => setRates(true)} disabled={!info} className="absolute right-[2cqw] bottom-[2cqw] rounded-lg px-[2cqw] py-[0.5cqw] bg-black/65 underline text-sky-300" style={{ fontSize: fs(23) }}>提供割合を見る</button>
         </Box>
+        {cur?.hasBanner && <Box x={110} y={800} w={804} h={60} className="text-center" style={{ fontSize: fs(34), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 6px #000' }}>{cur.name}</Box>}
 
         <Btn x={70} count={1} label="1回引く" />
         <Btn x={524} count={10} label="10回引く" />

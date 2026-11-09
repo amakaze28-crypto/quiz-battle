@@ -9,6 +9,8 @@ import { rankInfo, ratingValue, TIERS, MASTER_START } from './rank.js';
 import { cfg } from './config.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
+import { listGachas, poolFor, isActive, costOf, NORMAL_ID } from './gachaDefs.js';
+import { listSounds, soundData } from './sounds.js';
 
 const MAX_FRIENDS = 50;
 
@@ -266,7 +268,7 @@ export function mountApi(app) {
     for (const [k, w] of entries) { x -= w; if (x < 0) return k; }
     return entries[entries.length - 1][0];
   };
-  const gachaPool = async () => (await store.colList('items')).filter((i) => i.inGacha && RARITIES.includes(i.rarity));
+  const gachaMeta = (g, now) => ({ id: g.id, name: g.name, kind: g.kind, cost: costOf(g), startAt: g.startAt, endAt: g.endAt, hasBanner: !!g.banner, active: isActive(g, now) });
 
   // 提供割合（表示用）。出るアイテムがいないレア度は除いて按分し直す
   function rates(g, pool) {
@@ -287,23 +289,44 @@ export function mountApi(app) {
     };
   }
 
+  // ガチャ一覧（通常＋開催中の期間限定）
+  r.get('/gacha/list', wrap(async (_req, res) => {
+    const now = Date.now();
+    const list = (await listGachas()).filter((g) => isActive(g, now));
+    res.json({ gachas: list.map((g) => ({ ...gachaMeta(g, now), banner: g.banner ? `/gacha-banner/${g.id}?v=${g.updatedAt || 0}` : '' })) });
+  }));
+
+  const getGacha = async (id) => {
+    const g = (await listGachas()).find((x) => x.id === (id || NORMAL_ID));
+    return g && isActive(g) ? g : null;
+  };
+
   r.get('/gacha/info', wrap(async (req, res) => {
     const u = await fresh(req);
+    const gc = await getGacha(req.query.id);
+    if (!gc) return res.status(404).json({ error: 'このガチャは終了しました' });
     const g = settings().gacha;
-    const pool = await gachaPool();
+    const pool = await poolFor(gc);
+    const owned = new Set(u.ownedItems);
+    const brief = (i) => ({ ...meta(i), owned: owned.has(i.id) });
     res.json({
-      coins: u.coins, sand: u.sand, cost: g.cost, rates: rates(g, pool), sandAmounts: g.sandAmounts, dupSand: g.dupSand,
-      pool: pool.sort((a, b) => RANK[a.rarity] - RANK[b.rarity]).map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) })),
+      gacha: gachaMeta(gc, Date.now()),
+      coins: u.coins, sand: u.sand, cost: costOf(gc), rates: rates(g, pool), sandAmounts: g.sandAmounts, dupSand: g.dupSand,
+      pool: pool.sort((a, b) => RANK[a.rarity] - RANK[b.rarity]).map((i) => i.isSet
+        ? { id: i.id, name: i.name, type: 'set', rarity: 'legendary', owned: i.items.every((x) => owned.has(x.id)), items: i.items.map(brief) }
+        : brief(i)),
     });
   }));
 
   r.post('/gacha/pull', wrap(async (req, res) => {
     const count = Number(req.body.count) === 10 ? 10 : 1;
     const u = await fresh(req);
+    const gc = await getGacha(req.body.id);
+    if (!gc) return res.status(400).json({ error: 'このガチャは終了しました' });
     const g = settings().gacha;
-    const total = g.cost * count;
+    const total = costOf(gc) * count;
     if (u.coins < total) return res.status(400).json({ error: `コインが足りません（${total}コイン必要）` });
-    const pool = await gachaPool();
+    const pool = await poolFor(gc);
     const rt = rates(g, pool);
     const owned = new Set(u.ownedItems);
     let sandGain = 0;
@@ -314,6 +337,19 @@ export function mountApi(app) {
         const rar = wpick(RARITIES.map((x) => [x, rt.itemRarity[x]]));
         const cand = pool.filter((i) => i.rarity === rar);
         const it = cand[Math.floor(Math.random() * cand.length)];
+        if (it.isSet) {
+          // セット: 中身をまとめて獲得。すでに持っているものは砂に変わる
+          let sand = 0;
+          const items = it.items.map((x) => {
+            const dup = owned.has(x.id);
+            if (dup) sand += g.dupSand[rarityOf(x)];
+            owned.add(x.id);
+            return { ...meta(x), duplicate: dup };
+          });
+          sandGain += sand;
+          results.push({ kind: 'set', set: { id: it.id, name: it.name, rarity: 'legendary' }, items, duplicate: items.every((x) => x.duplicate), sand });
+          continue;
+        }
         const dup = owned.has(it.id);
         const sand = dup ? g.dupSand[it.rarity] : 0;
         owned.add(it.id);
@@ -422,6 +458,24 @@ export function mountApi(app) {
   }));
 
   app.use('/api', r);
+
+  // ガチャのバナー画像・差し替え音源の配信（認証不要）
+  app.get('/gacha-banner/:id', async (req, res) => {
+    try {
+      const g = (await listGachas()).find((x) => x.id === req.params.id);
+      const m = g?.banner?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+      if (!m) return res.status(404).end();
+      res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable').send(Buffer.from(m[2], 'base64'));
+    } catch { res.status(500).end(); }
+  });
+  app.get('/sounds', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json(await listSounds()); } catch { res.status(500).end(); } });
+  app.get('/sound/:slot', async (req, res) => {
+    try {
+      const d = await soundData(req.params.slot);
+      if (!d) return res.status(404).end();
+      res.set('Content-Type', d.mime).set('Content-Length', d.buf.length).set('Cache-Control', 'public, max-age=31536000, immutable').send(d.buf);
+    } catch { res.status(500).end(); }
+  });
 
   // アイテム画像（アイコン・フレーム・バナー）の配信（認証不要・不変URL）
   app.get('/item/:id', async (req, res) => {

@@ -57,7 +57,7 @@ function Authed({ user }) {
   const withGate = (el) => <>{el}{needName && <NameSetup profile={g.profile} call={call} />}</>;
 
   // BGM: マッチ成立後は対戦曲(3曲からランダム)、それ以外はホーム曲
-  useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : 'home');
+  useBgm(['matched', 'playing'].includes(g.phase) ? 'battle' : view === 'gacha' ? 'gacha' : 'home');
 
   // 効果音
   const qIndex = g.q?.index;

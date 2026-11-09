@@ -131,10 +131,16 @@ export function Delivery({ user }) {
 
 /* ---------------- アイテム（アイコン・フレーム・バナー） ---------------- */
 // 種類ごとに画像を整える: アイコン=中央を正方形に切り出し256px / フレーム=透過を保って256px / バナー=4:1に切り出し800x200
-async function fileToImage(file, type) {
+export async function fileToImage(file, type) {
   const bmp = await createImageBitmap(file);
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d');
+  if (type === 'gachabanner') { // ガチャのバナー: 約1.87:1(1000x535)に切り出し
+    c.width = 1000; c.height = 535;
+    const k = Math.max(1000 / bmp.width, 535 / bmp.height); const sw = 1000 / k; const sh = 535 / k;
+    ctx.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, 1000, 535);
+    return c.toDataURL('image/webp', 0.85);
+  }
   if (type === 'banner') {
     c.width = 800; c.height = 200;
     const r = Math.min(bmp.width / 4, bmp.height); const sw = r * 4;
@@ -237,20 +243,22 @@ export function ItemsAdmin({ user }) {
 }
 
 /* ---------------- 設定 ---------------- */
+const num = (v) => (v === '' ? '' : Number(v));
+// 入力部品はコンポーネントの外に置く（中に置くと1文字ごとに作り直され、入力が途切れる）
+export const Field = ({ label, children }) => <label className="flex items-center justify-between gap-3 py-1.5"><span>{label}</span>{children}</label>;
+export const Num = ({ value, onChange, w = 'w-24', ...rest }) => <input type="number" min={0} className={`${input} ${w}`} value={value} onChange={(e) => onChange(num(e.target.value))} {...rest} />;
+
 export function SettingsAdmin({ user }) {
   const [s, setS] = useState(null);
   const [msg, setMsg] = useState(null);
   useEffect(() => { adminApi(user, '/settings').then(setS).catch((e) => setMsg({ ok: false, text: e.message })); }, [user]);
   if (!s) return <p>{msg?.text || '読み込み中…'}</p>;
 
-  const num = (v) => (v === '' ? '' : Number(v));
   const save = async () => {
     try { setS(await adminApi(user, '/settings', { method: 'PUT', body: s })); setMsg({ ok: true, text: '保存しました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const g = s.gacha;
   const setG = (patch) => setS({ ...s, gacha: { ...g, ...patch } });
-  const Field = ({ label, children }) => <label className="flex items-center justify-between gap-3 py-1.5"><span>{label}</span>{children}</label>;
-  const Num = ({ value, onChange, w = 'w-24', ...rest }) => <input type="number" min={0} className={`${input} ${w}`} value={value} onChange={(e) => onChange(num(e.target.value))} {...rest} />;
 
   // 比率の合計を表示（合計が100でなくても按分されます）
   const sum = (o) => RARITIES.reduce((t, x) => t + Number(o[x] || 0), 0);
