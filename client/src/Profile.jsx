@@ -1,8 +1,49 @@
-import RankBadge from './RankBadge';
-import { Avatar, Banner, Coin, Sand } from './Parts';
+import { useEffect, useState } from 'react';
+import { callApi } from './api';
+import PlayerCard, { TIER_LABEL } from './PlayerCard';
+import { Avatar, Coin, Sand } from './Parts';
+import ItemPreview from './ItemPreview';
 import { Panel, Title } from './Ui';
+import { sfx } from './audio';
 
-export default function Profile({ profile }) {
+const TIERS = ['rookie', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'emperor'];
+
+// プレイヤーカードのカスタマイズ（アイコン・キャラ・バッジ）
+function CardEditor({ user, profile, call }) {
+  const [items, setItems] = useState([]);
+  const [err, setErr] = useState('');
+  useEffect(() => { callApi(user, '/shop').then((d) => setItems(d.items.filter((i) => i.owned))).catch((e) => setErr(e.message)); }, [user, profile?.sand]);
+  const run = async (fn) => { setErr(''); try { await fn(); sfx('ok'); } catch (e) { setErr(e.message); } };
+  const equip = (slot, id) => run(() => call('/equip', { method: 'POST', body: { slot, itemId: id } }));
+  const badge = (b) => run(() => call('/badge', { method: 'POST', body: { badge: b } }));
+  const mine = TIERS.indexOf(profile.rank.key);
+  const sel = 'ring-2 ring-amber-400 bg-amber-400/20';
+  const cell = 'rounded-lg p-1.5 bg-black/25 flex items-center justify-center';
+  const icons = items.filter((i) => i.type === 'icon');
+  const chars = items.filter((i) => i.type === 'character');
+  return (
+    <Panel className="p-3 mt-3 text-left">
+      <h3 className="font-bold mb-2">カードの設定</h3>
+      {err && <p className="text-red-300 text-sm mb-2">{err}</p>}
+      <p className="text-xs text-slate-300 mb-1">アイコン</p>
+      <div className="grid grid-cols-5 gap-2 mb-3">
+        {icons.map((i) => <button key={i.id} onClick={() => equip('icon', i.id)} className={`${cell} ${profile.iconId === i.id ? sel : ''}`}><Avatar iconId={i.id} size={48} /></button>)}
+      </div>
+      <p className="text-xs text-slate-300 mb-1">キャラクター（アイコンとは別）</p>
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {chars.map((i) => <button key={i.id} onClick={() => equip('character', i.id)} className={`${cell} ${profile.charId === i.id ? sel : ''}`}><ItemPreview item={i} size="48px" /></button>)}
+      </div>
+      <p className="text-xs text-slate-300 mb-1">バッジ（到達済みのランクから選べます）</p>
+      <div className="flex flex-wrap gap-2">
+        {[['auto', '現在のランク'], ...TIERS.slice(0, mine + 1).map((t) => [t, TIER_LABEL[t]]), ['none', 'なし']].map(([k, label]) => (
+          <button key={k} onClick={() => badge(k)} className={`px-3 py-1.5 rounded-lg text-sm bg-black/25 ${(profile.badgeId || 'auto') === k ? sel : ''}`}>{label}</button>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export default function Profile({ profile, user, call }) {
   if (!profile) return <p>読み込み中…</p>;
   const r = profile.rank;
   const progress = r.nextAt ? Math.min(100, Math.max(0, ((profile.pt - r.subStart) / (r.nextAt - r.subStart)) * 100)) : 100;
@@ -11,13 +52,7 @@ export default function Profile({ profile }) {
   return (
     <div className="text-center ui-text">
       <Title>プロフィール</Title>
-      {profile.bannerId !== 'none' && <Banner bannerId={profile.bannerId} className="w-full rounded-xl mb-4" style={{ aspectRatio: '4 / 1' }} />}
-      <div className="flex justify-center items-end gap-6">
-        <RankBadge rank={r} size={150} />
-        <Avatar iconId={profile.iconId} frameId={profile.frameId} size={76} className="ring-2 ring-white/30" />
-      </div>
-      <p className="mt-2 text-3xl font-extrabold">{r.label}</p>
-      <p className="text-slate-300">{profile.displayName}</p>
+      <div className="mx-auto mb-4" style={{ maxWidth: 320 }}><PlayerCard c={profile} /></div>
       <p className="mb-4 flex justify-center gap-5"><Coin n={profile.coins} size={20} className="text-amber-300" /><Sand n={profile.sand} size={22} className="text-amber-300" /></p>
 
       <Panel className="p-3 text-left">
@@ -35,6 +70,7 @@ export default function Profile({ profile }) {
           ))}
         </div>
       </Panel>
+      {user && call && <CardEditor user={user} profile={profile} call={call} />}
       <Panel className="p-3 mt-3 text-left">
         <p className="text-xs text-slate-400">フレンドコード</p>
         <p className="text-xl font-mono font-extrabold tracking-widest">{profile.friendCode}</p>

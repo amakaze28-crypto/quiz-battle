@@ -101,6 +101,10 @@ async function fileToImage(file, type) {
     c.width = 800; c.height = 200;
     const r = Math.min(bmp.width / 4, bmp.height); const sw = r * 4;
     ctx.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - r) / 2, sw, r, 0, 0, 800, 200);
+  } else if (type === 'character') { // 全身キャラ: 透過を保って縦長(最大700x1100)に収める
+    const k = Math.min(700 / bmp.width, 1100 / bmp.height, 1);
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
   } else if (type === 'frame') {
     c.width = 256; c.height = 256;
     const s = Math.max(bmp.width, bmp.height);
@@ -111,7 +115,7 @@ async function fileToImage(file, type) {
     const s = Math.min(bmp.width, bmp.height);
     ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 256, 256);
   }
-  return c.toDataURL('image/webp', 0.9);
+  return c.toDataURL('image/webp', type === 'character' ? 0.8 : 0.9);
 }
 
 export function ItemsAdmin({ user }) {
@@ -139,12 +143,13 @@ export function ItemsAdmin({ user }) {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          {f.image ? <img src={f.image} alt="" className={f.type === 'banner' ? 'w-40 h-10 rounded object-cover' : 'w-16 h-16 object-cover ' + (f.type === 'icon' ? 'rounded-full' : '')} /> : <div className="w-16 h-16 rounded bg-slate-700" />}
+          {f.image ? <img src={f.image} alt="" className={f.type === 'banner' ? 'w-40 h-10 rounded object-cover' : f.type === 'character' ? 'h-24 object-contain' : 'w-16 h-16 object-cover ' + (f.type === 'icon' ? 'rounded-full' : '')} /> : <div className="w-16 h-16 rounded bg-slate-700" />}
           <input type="file" accept="image/*" onChange={pick} className="text-sm" />
         </div>
         <p className="text-xs text-slate-400">
           {f.type === 'icon' && '中央を正方形に切り出して256pxに縮小します。'}
           {f.type === 'frame' && 'アイコンに重ねる枠です。中央が透明な正方形のPNG／WebPを選んでください（透過は保たれます）。'}
+          {f.type === 'character' && '全身の立ち絵（背景透過のPNG/WebP推奨・縦長）。プレイヤーカードに表示されます。'}
           {f.type === 'banner' && '横長(4:1)の画像がおすすめです。800×200に整えます。'}
         </p>
         <input className={input} placeholder="名前" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
@@ -173,7 +178,7 @@ export function ItemsAdmin({ user }) {
       <ul className="space-y-2">
         {shown?.map((i) => (
           <li key={i.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
-            {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
+            {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : i.type === 'character' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></p>
               <Sand n={i.price} size={18} className="text-amber-300 text-sm" />

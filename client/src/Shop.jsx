@@ -6,7 +6,7 @@ import { Avatar, Sand, Dot, RarityTag } from './Parts';
 import ItemPreview from './ItemPreview';
 import { RARITY } from './icons';
 
-const TABS = [['icon', 'アイコン', '👤', 255, 165], ['frame', 'フレーム', '▣', 445, 170], ['banner', 'バナー', '🔖', 640, 170]];
+const TABS = [['icon', 'アイコン', '👤', 255, 165], ['frame', 'フレーム', '▣', 445, 170], ['banner', 'バナー', '🔖', 640, 170], ['character', 'キャラ', '🧍', 835, 170]];
 const gold = 'linear-gradient(180deg,#f1dc9a,#c9a24a)';
 const navy = 'linear-gradient(180deg,#13264d,#0a1630)';
 

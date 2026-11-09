@@ -32,7 +32,7 @@ export default function Result({ g, user }) {
                 {r.mr != null ? `（${r.mr} MR）` : r.pt != null ? `（${r.pt} pt）` : ''}
               </span>
             </div>
-            {r.uid !== myUid && !r.isBot && (
+            {r.uid !== myUid && (
               <div className="mt-2 text-right"><button onClick={() => setReport(r.uid)} className="text-xs text-red-300 underline">通報</button></div>
             )}
           </Panel>

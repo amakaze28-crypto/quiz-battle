@@ -1,6 +1,7 @@
 import express from 'express';
 import * as store from './store.js';
 import * as missions from './missions.js';
+import { isBot } from './bots.js';
 import * as presence from './presence.js';
 import { settings, RARITIES } from './settings.js';
 import { profilePayload } from './profile.js';
@@ -126,7 +127,7 @@ export function mountApi(app) {
 
   // ---- フレンド ----
   const friendView = (f) => ({
-    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none',
+    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto',
     rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
@@ -196,7 +197,9 @@ export function mountApi(app) {
 
   // ---- ショップ / ガチャ / 装備 ----
   const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, inGacha: !!i.inGacha });
-  const SLOTS = { icon: 'iconId', frame: 'frameId', banner: 'bannerId' };
+  const SLOTS = { icon: 'iconId', frame: 'frameId', banner: 'bannerId', character: 'charId' };
+  // 同梱の初期アイテム（画像ファイル）。slot ごとの装備可能ID
+  const BUILTIN = { icon: ['default', 'default2'], character: ['char-m', 'char-f'] };
   const RANK = Object.fromEntries(RARITIES.map((x, i) => [x, i]));
   const rarityOf = (i) => (RARITIES.includes(i.rarity) ? i.rarity : 'common');
 
@@ -207,8 +210,9 @@ export function mountApi(app) {
       .filter((i) => i.onShop || u.ownedItems.includes(i.id))
       .sort((a, b) => (RANK[rarityOf(a)] - RANK[rarityOf(b)]) || (a.price - b.price) || (a.createdAt - b.createdAt))
       .map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) }));
-    items.unshift({ id: 'default', name: '初期アイコン', type: 'icon', rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
-    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, banner: u.bannerId }, items });
+    const base = (id, name, type) => ({ id, name, type, rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
+    items.unshift(base('default', '初期アイコン（男性）', 'icon'), base('default2', '初期アイコン（女性）', 'icon'), base('char-m', '初期キャラ（男性）', 'character'), base('char-f', '初期キャラ（女性）', 'character'));
+    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, banner: u.bannerId, character: u.charId }, items });
   }));
 
   r.post('/shop/buy', wrap(async (req, res) => {
@@ -230,12 +234,26 @@ export function mountApi(app) {
       if (slot === 'icon') return res.status(400).json({ error: 'アイコンは外せません' });
     } else {
       if (!u.ownedItems.includes(id)) return res.status(400).json({ error: '未所持のアイテムです' });
-      if (id !== 'default') {
+      if (BUILTIN[slot]?.includes(id)) { /* 同梱アイテム */ } else {
         const item = await store.colGet('items', id);
         if (!item || item.type !== slot) return res.status(400).json({ error: '装備できません' });
-      } else if (slot !== 'icon') return res.status(400).json({ error: '装備できません' });
+      }
     }
+    if (id === 'none' && slot === 'character') return res.status(400).json({ error: 'キャラは外せません' });
     await store.updateUser(u.uid, { [SLOTS[slot]]: id });
+    res.json(withProfile(req, await fresh(req)));
+  }));
+
+  // バッジ（バナーに表示するランクバッジ）。'auto'=現在のランク、または到達済みのティアを選べる
+  r.post('/badge', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const badge = String(req.body.badge || 'auto');
+    if (badge !== 'auto' && badge !== 'none') {
+      const mine = rankInfo(u, getEmperorSet());
+      const order = ['rookie', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'emperor'];
+      if (order.indexOf(badge) < 0 || order.indexOf(badge) > order.indexOf(mine.key)) return res.status(400).json({ error: 'まだ獲得していないバッジです' });
+    }
+    await store.updateUser(u.uid, { badgeId: badge });
     res.json(withProfile(req, await fresh(req)));
   }));
 
@@ -332,6 +350,8 @@ export function mountApi(app) {
     if (reason === 'other' && !comment) return res.status(400).json({ error: '「その他」はコメントを入力してください' });
     const rec = getRecent(req.me.uid);
     const target = rec?.players.find((p) => p.uid === targetUid);
+    // botへの通報は、通報したように見せるだけ（管理者には届かない）
+    if (rec && rec.roomId === roomId && target && isBot(targetUid)) { rec.reported.add(targetUid); return res.json({ ok: true }); }
     if (!rec || rec.roomId !== roomId || !target || targetUid === req.me.uid) return res.status(400).json({ error: '直近の対戦相手のみ通報できます' });
     if (rec.reported.has(targetUid)) return res.status(400).json({ error: 'この試合ではすでに通報済みです' });
     rec.reported.add(targetUid);

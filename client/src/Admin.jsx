@@ -35,6 +35,7 @@ function Questions({ user }) {
   const [list, setList] = useState([]);
   const [filter, setFilter] = useState('all'); // all | published | draft
   const [search, setSearch] = useState('');
+  const [fileSel, setFileSel] = useState('all'); // 'all' | ファイル名
   const [editing, setEditing] = useState(null); // null | 'new' | question
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
@@ -44,13 +45,29 @@ function Questions({ user }) {
   }, [user]);
   useEffect(() => { load(); }, [load]);
 
+  const fileOf = (q) => q.file || '未分類';
+  const files = useMemo(() => {
+    const m = new Map();
+    list.forEach((q) => { const f = fileOf(q); const e = m.get(f) || { n: 0, p: 0 }; e.n++; if (q.published) e.p++; m.set(f, e); });
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
+  }, [list]);
   const shown = useMemo(() => list.filter((q) =>
-    (filter === 'all' || (filter === 'published') === !!q.published)
-    && (!search || q.question.includes(search) || q.choices.some((c) => c.includes(search)))), [list, filter, search]);
+    (fileSel === 'all' || fileOf(q) === fileSel)
+    && (filter === 'all' || (filter === 'published') === !!q.published)
+    && (!search || q.question.includes(search) || q.choices.some((c) => c.includes(search)))), [list, filter, search, fileSel]);
   const publishedCount = list.filter((q) => q.published).length;
 
   const act = async (fn) => { try { await fn(); await load(); } catch (e) { alert(e.message); } };
   const toggle = (q) => act(() => adminApi(user, `/questions/${q.id}/publish`, { method: 'POST', body: { published: !q.published } }));
+  const fileAct = (path, body, ask) => { if (!ask || window.confirm(ask)) act(() => adminApi(user, `/questions/files/${path}`, { method: 'POST', body })); };
+  const moveOne = (q) => {
+    const to = window.prompt(`移動先のファイル名（既存: ${files.map((f) => f[0]).join(' / ')}）`, fileOf(q));
+    if (to && to.trim()) act(() => adminApi(user, '/questions/move', { method: 'POST', body: { ids: [q.id], to: to.trim() } }));
+  };
+  const renameFile = () => {
+    const to = window.prompt(`「${fileSel}」の新しい名前`, fileSel);
+    if (to && to.trim() && to.trim() !== fileSel) { fileAct('rename', { from: fileSel, to: to.trim() }); setFileSel(to.trim().slice(0, 40)); }
+  };
   const remove = (q) => { if (window.confirm(`この問題を削除しますか？\n\n${q.question}`)) act(() => adminApi(user, `/questions/${q.id}`, { method: 'DELETE' })); };
 
   return (
@@ -61,6 +78,20 @@ function Questions({ user }) {
         <span className="text-sm text-slate-400 ml-auto">公開中 {publishedCount} / 全 {list.length} 問</span>
       </div>
       {publishedCount < 10 && <p className="mb-3 text-sm text-amber-400">公開中の問題が10問未満です（試合は公開中の全問で行われます）。</p>}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {[['all', 'すべて', list.length, list.filter((q) => q.published).length], ...files.map(([f, e]) => [f, f, e.n, e.p])].map(([k, label, n, p]) => (
+          <button key={k} onClick={() => setFileSel(k)} className={`${btn} ${fileSel === k ? 'bg-sky-600 font-bold' : 'bg-[#171a20]'}`}>📁 {label} <span className="text-xs opacity-70">{p}/{n}</span></button>
+        ))}
+      </div>
+      {fileSel !== 'all' && (
+        <div className="flex flex-wrap gap-2 mb-3 items-center rounded-lg bg-[#171a20] p-2">
+          <span className="text-sm text-slate-300">📁 {fileSel} の操作:</span>
+          <button onClick={() => fileAct('publish', { file: fileSel, published: true })} className={`${btn} bg-emerald-600`}>全部公開</button>
+          <button onClick={() => fileAct('publish', { file: fileSel, published: false })} className={`${btn} bg-slate-700`}>全部非公開</button>
+          <button onClick={renameFile} className={`${btn} bg-slate-700`}>名前変更</button>
+          <button onClick={() => fileAct('delete', { file: fileSel }, `ファイル「${fileSel}」の問題 ${files.find((f) => f[0] === fileSel)?.[1].n ?? 0}問をすべて削除しますか？`)} className={`${btn} bg-red-600/80 ml-auto`}>ファイルごと削除</button>
+        </div>
+      )}
       <div className="flex gap-2 mb-4">
         <input className={input} placeholder="問題文・選択肢を検索" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className={`${input} w-32`} value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -75,6 +106,7 @@ function Questions({ user }) {
             <div className="flex items-start gap-3">
               <span className={`shrink-0 text-xs rounded px-2 py-0.5 ${q.published ? 'bg-emerald-600' : 'bg-slate-600'}`}>{q.published ? '公開' : '非公開'}</span>
               <div className="min-w-0 flex-1">
+                <p className="text-xs text-sky-300 mb-0.5">📁 {fileOf(q)}</p>
                 <p className="font-semibold">{q.question}</p>
                 <p className="text-sm text-slate-400 mt-1">
                   {q.choices.map((c, i) => <span key={i} className={i === q.answer ? 'text-emerald-400 font-bold mr-3' : 'mr-3'}>{'ABCD'[i]}. {c}</span>)}
@@ -83,6 +115,7 @@ function Questions({ user }) {
             </div>
             <div className="flex gap-2 mt-3 justify-end">
               <button onClick={() => toggle(q)} className={`${btn} bg-slate-700`}>{q.published ? '非公開にする' : '公開する'}</button>
+              <button onClick={() => moveOne(q)} className={`${btn} bg-slate-700`}>移動</button>
               <button onClick={() => setEditing(q)} className={`${btn} bg-slate-700`}>編集</button>
               <button onClick={() => remove(q)} className={`${btn} bg-red-600/80`}>削除</button>
             </div>
@@ -91,8 +124,8 @@ function Questions({ user }) {
         {shown.length === 0 && <li className="text-slate-400 text-center py-8">問題がありません</li>}
       </ul>
 
-      {editing && <QuestionForm user={user} q={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
-      {importing && <ImportModal user={user} onClose={() => setImporting(false)} onDone={load} />}
+      {editing && <QuestionForm user={user} files={files.map((f) => f[0])} defaultFile={fileSel === 'all' ? '' : fileSel} q={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {importing && <ImportModal user={user} defaultFile={fileSel === 'all' ? '' : fileSel} onClose={() => setImporting(false)} onDone={load} />}
     </div>
   );
 }
@@ -111,7 +144,8 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-function QuestionForm({ user, q, onClose, onSaved }) {
+function QuestionForm({ user, q, files = [], defaultFile = '', onClose, onSaved }) {
+  const [file, setFile] = useState(q?.file || defaultFile || '');
   const [question, setQuestion] = useState(q?.question || '');
   const [choices, setChoices] = useState(q?.choices || ['', '', '', '']);
   const [answer, setAnswer] = useState(q?.answer ?? 0);
@@ -121,7 +155,7 @@ function QuestionForm({ user, q, onClose, onSaved }) {
 
   const save = async () => {
     try {
-      const body = { question, choices, answer, explanation, published };
+      const body = { question, choices, answer, explanation, published, file: file.trim() || '未分類' };
       if (q) await adminApi(user, `/questions/${q.id}`, { method: 'PUT', body });
       else await adminApi(user, '/questions', { method: 'POST', body });
       onSaved();
@@ -130,6 +164,9 @@ function QuestionForm({ user, q, onClose, onSaved }) {
 
   return (
     <Modal title={q ? '問題を編集' : '問題を追加'} onClose={onClose}>
+      <label className="text-sm text-slate-400">ファイル（空欄は「未分類」）</label>
+      <input className={`${input} mb-3`} list="qfiles" maxLength={40} value={file} onChange={(e) => setFile(e.target.value)} placeholder="例: 基礎看護学" />
+      <datalist id="qfiles">{files.map((f) => <option key={f} value={f} />)}</datalist>
       <label className="text-sm text-slate-400">問題文</label>
       <textarea className={`${input} mb-3`} rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} />
       <label className="text-sm text-slate-400">選択肢（正解にチェック）</label>
@@ -152,7 +189,8 @@ function QuestionForm({ user, q, onClose, onSaved }) {
   );
 }
 
-function ImportModal({ user, onClose, onDone }) {
+function ImportModal({ user, defaultFile = '', onClose, onDone }) {
+  const [fileName, setFileName] = useState(defaultFile);
   const [text, setText] = useState('');
   const [published, setPublished] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -163,7 +201,8 @@ function ImportModal({ user, onClose, onDone }) {
     if (!files.length) return;
     const all = [];
     for (const f of files) {
-      try { const d = JSON.parse(await f.text()); all.push(...(Array.isArray(d) ? d : d.questions || [])); }
+      try { const d = JSON.parse(await f.text()); const base = f.name.replace(/\.json$/i, '');
+        all.push(...(Array.isArray(d) ? d : d.questions || []).map((x) => ({ file: base, ...x }))); }
       catch { return setMsg({ ok: false, text: `${f.name} をJSONとして読み込めません` }); }
     }
     setText(JSON.stringify(all, null, 1)); setMsg({ ok: true, text: `${files.length}ファイル・${all.length}問を読み込みました。「取り込む」を押してください` });
@@ -175,7 +214,7 @@ function ImportModal({ user, onClose, onDone }) {
     const questions = Array.isArray(data) ? data : data.questions;
     if (!Array.isArray(questions)) return setMsg({ ok: false, text: '配列（または {"questions":[...]}）で指定してください' });
     try {
-      const r = await adminApi(user, '/questions/import', { method: 'POST', body: { questions, published } });
+      const r = await adminApi(user, '/questions/import', { method: 'POST', body: { questions: fileName.trim() ? questions.map((x) => ({ ...x, file: fileName.trim() })) : questions, published } });
       setMsg({
         ok: true,
         text: `${r.imported}件を取り込みました（重複スキップ ${r.skipped}件 / エラー ${r.errors.length}件）`,
@@ -188,6 +227,8 @@ function ImportModal({ user, onClose, onDone }) {
   return (
     <Modal title="JSON取り込み" onClose={onClose}>
       <p className="text-xs text-slate-400 mb-2">形式: <code>[{'{'}"question":"…","choices":["A","B","C","D"],"answer":0,"explanation":"任意"{'}'}]</code>（answerは0始まり）。同じ問題文は重複としてスキップされます。</p>
+      <label className="text-xs text-slate-400">ファイル名（空欄なら、選んだJSONのファイル名がそのままファイル名になります）</label>
+      <input className={`${input} mb-2`} maxLength={40} value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="例: 基礎看護学" />
       <input type="file" multiple accept=".json,application/json" onChange={onFile} className="mb-2 text-sm" />
       <textarea className={`${input} font-mono text-xs mb-3`} rows={8} placeholder="ここにJSONを貼り付け、またはファイルを選択" value={text} onChange={(e) => setText(e.target.value)} />
       <label className="flex items-center gap-2 mb-3 text-sm"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />取り込み後すぐに公開する（オフなら非公開で取り込み）</label>

@@ -40,7 +40,7 @@ export class Room {
   clear(t) { if (t) { clearTimeout(t); this.timers.delete(t); } }
 
   start() {
-    registerRoom(this.id, this.players.filter((p) => !p.isBot)); // 通報の対象はbot以外
+    registerRoom(this.id, this.players); // botも通報できる（ただしbotへの通報は管理者には届かない）
     this.players.forEach((p) => p.socket.join(this.id));
     this.hasBots = this.players.some((p) => p.isBot);
     this.io.to(this.id).emit('match:found', {

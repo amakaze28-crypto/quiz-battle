@@ -106,7 +106,7 @@ function Authed({ user }) {
   if (view === 'gacha') return <Gacha {...common} g={g} call={call} onLogout={logout} />;
 
   const body = {
-    profile: <Profile profile={g.profile} />,
+    profile: <Profile profile={g.profile} user={user} call={call} />,
     settings: <Settings profile={g.profile} call={call} />,
     mail: <Mails user={user} call={call} onChange={refresh} />,
     admin: g.profile?.isAdmin ? <Admin user={user} /> : null,

@@ -1,6 +1,6 @@
 import express from 'express';
 import * as store from './store.js';
-import { normalizeQuestion, reloadQuestions } from './questions.js';
+import { normalizeQuestion, reloadQuestions, fileName } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { saveSettings, settings } from './settings.js';
@@ -52,17 +52,46 @@ export function mountAdmin(app, { io, matchmaker }) {
       if (!n.ok) return errors.push({ index: i, message: n.error });
       if (existing.has(n.value.question)) { skipped += 1; return; }
       existing.add(n.value.question);
-      toCreate.push({ ...n.value, published: !!req.body.published });
+      toCreate.push({ ...n.value, file: fileName(raw?.file ?? req.body.file), published: !!req.body.published });
     });
     if (toCreate.length) await store.createQuestions(toCreate);
     await reloadQuestions();
     res.json({ imported: toCreate.length, skipped, errors });
   }));
 
+  // ファイル単位の操作（名前変更・一括公開/非公開・削除）
+  const inFile = async (name) => (await store.listQuestions()).filter((q) => fileName(q.file) === name);
+  r.post('/questions/files/rename', wrap(async (req, res) => {
+    const from = fileName(req.body.from); const to = fileName(req.body.to);
+    const list = await inFile(from);
+    for (const q of list) await store.updateQuestion(q.id, { file: to });
+    res.json({ moved: list.length });
+  }));
+  r.post('/questions/files/publish', wrap(async (req, res) => {
+    const list = await inFile(fileName(req.body.file));
+    for (const q of list) await store.updateQuestion(q.id, { published: !!req.body.published });
+    await reloadQuestions();
+    res.json({ changed: list.length });
+  }));
+  r.post('/questions/files/delete', wrap(async (req, res) => {
+    const list = await inFile(fileName(req.body.file));
+    for (const q of list) await store.deleteQuestion(q.id);
+    await reloadQuestions();
+    res.json({ deleted: list.length });
+  }));
+  // 選んだ問題をまとめて別のファイルへ移動
+  r.post('/questions/move', wrap(async (req, res) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    const to = fileName(req.body.to);
+    for (const id of ids) await store.updateQuestion(String(id), { file: to });
+    res.json({ moved: ids.length });
+  }));
+
   r.put('/questions/:id', wrap(async (req, res) => {
     const n = normalizeQuestion(req.body);
     if (!n.ok) return res.status(400).json({ error: n.error });
     const fields = { ...n.value };
+    if (typeof req.body.file !== 'string') delete fields.file; // 指定がなければファイルは変えない
     if (typeof req.body.published === 'boolean') fields.published = req.body.published;
     if (!(await store.updateQuestion(req.params.id, fields))) return res.status(404).json({ error: '問題が見つかりません' });
     await reloadQuestions();
@@ -169,7 +198,7 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.put('/settings', wrap(async (req, res) => res.json(await saveSettings(req.body || {}))));
 
   // ---- アイテム（アイコン・フレーム・バナー）。画像はブラウザ側で縮小したdata URLを想定 ----
-  const TYPES = ['icon', 'frame', 'banner'];
+  const TYPES = ['icon', 'frame', 'banner', 'character'];
   const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
   const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 700_000;
   r.get('/items', wrap(async (_req, res) => {

@@ -2,7 +2,9 @@ import { SERVER_URL } from './api';
 
 // 初期アイコンは同梱画像、それ以外(アイコン・フレーム・バナー)はサーバーから配信
 export const itemSrc = (id) => `${SERVER_URL}/item/${id}`;
-export const iconSrc = (id) => (!id || id === 'default' ? '/icons/default.png' : itemSrc(id));
+export const iconSrc = (id) => (!id || id === 'default' ? '/icons/default.png' : id === 'default2' ? '/icons/default2.png' : itemSrc(id));
+// 全身キャラ: 初期2種は同梱画像
+export const charSrc = (id) => (!id || id === 'char-m' ? '/chars/m.webp' : id === 'char-f' ? '/chars/f.webp' : itemSrc(id));
 
 export const RARITY = {
   common: { label: 'コモン', color: '#9ca3af' },
@@ -12,7 +14,7 @@ export const RARITY = {
   legendary: { label: 'レジェンダリー', color: '#fbbf24' },
 };
 export const RARITIES = Object.keys(RARITY);
-export const TYPE_LABEL = { icon: 'アイコン', frame: 'フレーム', banner: 'バナー' };
+export const TYPE_LABEL = { icon: 'アイコン', frame: 'フレーム', banner: 'バナー', character: 'キャラ' };
 
 export function ago(ts) {
   if (!ts) return 'なし';

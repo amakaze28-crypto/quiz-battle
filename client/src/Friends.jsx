@@ -3,6 +3,7 @@ import { callApi } from './api';
 import { Stage, Box, Hot, BackHome, NavHot, NavDots, fs } from './Stage';
 import { Avatar, Banner, Dot } from './Parts';
 import RankBadge from './RankBadge';
+import PlayerCard from './PlayerCard';
 import { ago } from './icons';
 
 const TABS = [['list', 'フレンドリスト', 38, 327], ['requests', 'フレンド申請', 370, 298], ['search', 'フレンド検索', 672, 318]];
@@ -10,7 +11,7 @@ const gold = 'linear-gradient(180deg,#f1dc9a,#c9a24a)';
 const navy = 'linear-gradient(180deg,#13264d,#0a1630)';
 const row = 'relative rounded-lg overflow-hidden flex items-center gap-[2cqw] p-[1.2cqw] bg-[#ece8dc] text-[#0b1a36]';
 
-function FriendRow({ f, status, children }) {
+function FriendRow({ f, status, children, onOpen }) {
   return (
     <div className={row}>
       <Banner bannerId={f.bannerId} className="absolute right-0 top-0 h-full w-[55%] opacity-40" style={{ maskImage: 'linear-gradient(90deg,transparent,#000 40%)', WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 40%)' }} />
@@ -18,7 +19,7 @@ function FriendRow({ f, status, children }) {
         <Avatar iconId={f.iconId} frameId={f.frameId} size={0} />
         {status && <span className={`absolute rounded-full ring-2 ring-[#ece8dc] ${f.online ? 'bg-emerald-400' : 'bg-slate-500'}`} style={{ right: '-3%', bottom: '-3%', width: '3cqw', height: '3cqw' }} />}
       </div>
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1 cursor-pointer" onClick={() => onOpen?.(f)}>
         <p className="font-extrabold truncate" style={{ fontSize: fs(30) }}>{f.displayName}</p>
         <p className="flex items-center gap-[1cqw] text-[#334155]" style={{ fontSize: fs(22) }}>
           <span style={{ width: '5cqw', height: '5cqw' }}><RankBadge rank={f.rank} size="fill" showSub={false} /></span>
@@ -40,6 +41,7 @@ export default function Friends({ user, go, summary, refresh }) {
   const [data, setData] = useState(null);
   const [sort, setSort] = useState('login');
   const [menu, setMenu] = useState(null);
+  const [card, setCard] = useState(null);
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState(null);
 
@@ -92,7 +94,7 @@ export default function Friends({ user, go, summary, refresh }) {
         {tab === 'list' && (
           <>
             {friends.map((f) => (
-              <FriendRow key={f.uid} f={f} status>
+              <FriendRow key={f.uid} f={f} status onOpen={setCard}>
                 <div className="relative">
                   <Btn onClick={() => setMenu(menu === f.uid ? null : f.uid)}>…</Btn>
                   {menu === f.uid && (
@@ -111,7 +113,7 @@ export default function Friends({ user, go, summary, refresh }) {
           <>
             <p className="text-[#9fb2d4] font-bold" style={{ fontSize: fs(22) }}>届いている申請</p>
             {data?.incoming.map((f) => (
-              <FriendRow key={f.uid} f={f}>
+              <FriendRow key={f.uid} f={f} onOpen={setCard}>
                 <Btn color="bg-emerald-500 text-white" onClick={() => run('/friends/accept', { uid: f.uid })}>承認</Btn>
                 <Btn color="bg-slate-500 text-white" onClick={() => run('/friends/remove', { uid: f.uid })}>拒否</Btn>
               </FriendRow>
@@ -156,6 +158,11 @@ export default function Friends({ user, go, summary, refresh }) {
 
       <NavHot go={go} y={1360} h={145} />
       <NavDots summary={summary} y={1372} Dot={Dot} />
+    {card && (
+        <div className="absolute inset-0 z-30 grid place-items-center bg-black/70 p-[4cqw]" onClick={() => setCard(null)}>
+          <div style={{ width: '62cqw' }}><PlayerCard c={card} /></div>
+        </div>
+      )}
     </Stage>
   );
 }

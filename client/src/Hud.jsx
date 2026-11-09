@@ -9,7 +9,7 @@ export default function Hud({ profile, summary, onMenu, go }) {
   const progress = r && r.nextAt ? Math.min(100, Math.max(0, ((profile.pt - r.subStart) / (r.nextAt - r.subStart)) * 100)) : 100;
   return (
     <>
-      <Box x={36} y={46} w={190} h={190}>
+      <Box x={34} y={42} w={196} h={196}>
         <button onClick={onMenu} className="w-full h-full rounded-full"><Avatar iconId={profile?.iconId} frameId={profile?.frameId} size={0} /></button>
       </Box>
 

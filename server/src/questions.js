@@ -5,6 +5,9 @@ import { cfg } from './config.js';
 // 問題JSON形式: [{ "question": "...", "choices": ["A","B","C","D"], "answer": 0, "explanation": "任意" }, ...]
 // ("questions"キーを持つオブジェクトでも可。answerは0始まりの選択肢番号。correctIndexでも可)
 
+// 問題は「ファイル」（グループ）に分けて管理できる。未指定は「未分類」
+export const fileName = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : '未分類');
+
 export function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return { ok: false, error: '形式が不正です' };
   const answer = q.answer ?? q.correctIndex;
@@ -19,6 +22,7 @@ export function normalizeQuestion(q) {
     value: {
       question, choices: q.choices.map((c) => c.trim()), answer,
       explanation: typeof q.explanation === 'string' ? q.explanation.trim() : '',
+      file: fileName(q.file),
     },
   };
 }

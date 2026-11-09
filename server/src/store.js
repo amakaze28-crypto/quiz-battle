@@ -37,14 +37,17 @@ export async function verifyToken(token) {
 }
 
 // ---------- users ----------
+// 最初から全員が持っているアイテム（初期アイコン2種・初期キャラ2種）
+export const BUILTIN_IDS = ['default', 'default2', 'char-m', 'char-f'];
+
 const defaults = (uid, name, photoURL, email) => ({
   uid, displayName: name, photoURL, email, pt: 0, mr: null, isMaster: false, wins: 0, losses: 0, games: 0, banned: false,
-  coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: ['default'], nameChanges: 0, joinedAt: Date.now(),
+  coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: [...BUILTIN_IDS], charId: 'char-m', badgeId: 'auto', nameChanges: 0, joinedAt: Date.now(),
   friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastLoginAt: 0, lastSeenAt: 0,
   statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {},
 });
 
-const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', ownedItems: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {} };
+const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', bannerId: 'none', charId: 'char-m', badgeId: 'auto', ownedItems: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {} };
 function norm(u) {
   const o = { ...u };
   for (const [k, v] of Object.entries(FILL)) {
@@ -54,6 +57,7 @@ function norm(u) {
     o.ownedItems = [...new Set([...o.ownedItems, ...o.ownedIcons])];
     delete o.ownedIcons;
   }
+  o.ownedItems = [...new Set([...o.ownedItems, ...BUILTIN_IDS])];
   return o;
 }
 

@@ -69,22 +69,29 @@ async function apply() {
     gain.gain.linearRampToValueAtTime(state.bgmVol, ctx.currentTime + 0.7);
     cur = { name: target, src, gain };
     for (const k of Object.keys(loaded)) if (k !== target) delete loaded[k]; // デコード済みデータ(大きい)は使う曲だけ保持
-  } catch { unlocked = false; /* 再生できなければ次のタップで再試行 */ }
+  } catch { /* 再生できなければ次のタップで再試行（unlock側で再度apply） */ }
 }
 
 // 対戦曲は3曲からランダム。対戦の間は同じ曲を流し、対戦から出るたびに選び直す
 let battlePick = null;
 export const playBgm = (name) => {
-  if (name === 'battle') { if (!battlePick) battlePick = BATTLE[Math.floor(Math.random() * BATTLE.length)]; want = battlePick; }
+  if (name === 'battle') { if (!battlePick) { const c = getBattleBgm(); battlePick = c === 'random' ? BATTLE[Math.floor(Math.random() * BATTLE.length)] : c; } want = battlePick; }
   else { battlePick = null; want = name; }
   apply();
 };
 
-export function sfx(name) {
-  if (!state.se || !unlocked || !SE.includes(name)) return;
+// 戦闘BGMの選択（'random' または battle1〜3）。端末に保存
+const BKEY = 'quiz.battleBgm';
+export const BATTLE_TRACKS = [['random', 'ランダム'], ['battle1', "The God's Gambit"], ['battle2', 'Silver Wind Over Stone'], ['battle3', 'Iron Liturgy']];
+export const getBattleBgm = () => { try { const v = localStorage.getItem(BKEY); return BATTLE_TRACKS.some((t) => t[0] === v) ? v : 'random'; } catch { return 'random'; } };
+export const setBattleBgm = (v) => { try { localStorage.setItem(BKEY, v); } catch { /* 保存できなくても動く */ } battlePick = null; };
+
+// opt.vol: 音量を指定（設定画面の確認音用）/ opt.force: オフでも鳴らす
+export function sfx(name, opt = {}) {
+  if ((!state.se && !opt.force) || !unlocked || !SE.includes(name)) return;
   if (!seBase[name]) { seBase[name] = new Audio(`/audio/se-${name}.mp3`); seBase[name].preload = 'auto'; }
   const a = seBase[name].cloneNode();
-  a.volume = Math.min(1, state.seVol);
+  a.volume = Math.min(1, opt.vol ?? state.seVol);
   a.play().catch(() => {});
 }
 
@@ -94,9 +101,18 @@ export const subscribeAudio = (f) => { listeners.add(f); return () => listeners.
 
 // 最初のタップで再生を解禁し、ボタンを押したら操作音を鳴らす
 export function initAudio() {
-  const unlock = () => { getCtx()?.resume?.(); if (!unlocked) { unlocked = true; apply(); } };
-  document.addEventListener('pointerdown', unlock, { capture: true });
-  document.addEventListener('keydown', unlock, { capture: true });
+  // iOSなどでは「タップ操作の中」でresumeしないと音が出ないので、いろいろな操作で何度でも試す。
+  // AudioContextが running になり、BGMが流れ始めるまで外さない
+  const unlock = () => {
+    const c = getCtx();
+    try { c?.resume?.(); } catch { /* 無視 */ }
+    if (c && c.state !== 'closed' && !unlocked) { // 無音を1回鳴らして音声出力を有効化
+      try { const b = c.createBuffer(1, 1, 22050); const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch { /* 無視 */ }
+    }
+    unlocked = true;
+    if (want && !cur) apply();
+  };
+  ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlock, { capture: true, passive: true }));
   document.addEventListener('click', (e) => {
     // タップ音は主要ボタン(ui-btn系)と、data-sfx を付けたボタンだけ。タブ・ナビ・解答・閉じるなどは鳴らさない
     const b = e.target.closest?.('.ui-btn, .ui-btn-gold, .ui-btn-red, [data-sfx]');
