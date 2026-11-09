@@ -2,6 +2,10 @@ import { cfg } from './config.js';
 import { calculateRateChange, applyDelta } from './rating.js';
 import { rankInfo } from './rank.js';
 import * as store from './store.js';
+import * as missions from './missions.js';
+import { settings } from './settings.js';
+import { registerRoom } from './recent.js';
+import { profilePayload } from './profile.js';
 import { getEmperorSet, refreshEmperors } from './emperors.js';
 
 const mean = (arr) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
@@ -17,9 +21,9 @@ export class Room {
     this.timers = new Set();
     this.cur = null;
     this.players = entries.map((e) => ({
-      uid: e.uid, name: e.name, photoURL: e.photoURL, socket: e.socket,
+      uid: e.uid, name: e.name, iconId: e.iconId, socket: e.socket,
       rating: e.rating, rankLabel: e.rankLabel, rankKey: e.rankKey, rankSub: e.rankSub,
-      score: 0, times: [], connected: true,
+      score: 0, secondaries: 0, times: [], connected: true,
     }));
   }
 
@@ -34,27 +38,21 @@ export class Room {
   clear(t) { if (t) { clearTimeout(t); this.timers.delete(t); } }
 
   start() {
+    registerRoom(this.id, this.players);
     this.players.forEach((p) => p.socket.join(this.id));
     this.io.to(this.id).emit('match:found', {
       roomId: this.id,
       total: this.questions.length,
       countdownMs: cfg.countdownMs,
-      players: this.players.map((p) => ({ uid: p.uid, name: p.name, photoURL: p.photoURL, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
+      players: this.players.map((p) => ({ uid: p.uid, name: p.name, iconId: p.iconId, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
     });
     this.after(cfg.countdownMs, () => this.startQuestion(0));
   }
 
   startQuestion(index) {
     const q = this.questions[index];
-    this.cur = {
-      index, startedAt: Date.now(), done: false,
-      answered: new Set(), wrong: new Set(), candidates: [],
-      firstCorrect: null, resolveTimer: null, timeoutTimer: null,
-    };
-    this.cur.timeoutTimer = this.after(cfg.questionTimeMs, () => {
-      if (this.cur.candidates.length) this.resolveQuestion();
-      else this.endQuestion(null, 0);
-    });
+    this.cur = { index, startedAt: Date.now(), done: false, answers: new Map(), timeoutTimer: null };
+    this.cur.timeoutTimer = this.after(cfg.questionTimeMs, () => this.endQuestion());
     // 正解・解説は送らない
     this.io.to(this.id).emit('question', {
       index, total: this.questions.length, id: q.id, question: q.question, choices: q.choices,
@@ -62,70 +60,62 @@ export class Room {
     });
   }
 
+  // 他の人が正解した後も、全員が解答を終えるか制限時間まで解答できる。
+  // 正解ごとに1点。Secondary(既定5%)が発動するとその問題の得点が2倍。誤答(お手つき)はその問題の解答権を失う
   handleAnswer(uid, { index, choice }) {
     const c = this.cur;
     if (!c || c.done || index !== c.index) return;
     const p = this.byUid(uid);
-    if (!p || c.answered.has(uid)) return; // 1問につき1回だけ（お手つきしたらその問題は解答権なし）
+    if (!p || c.answers.has(uid)) return;
     if (!Number.isInteger(choice) || choice < 0 || choice > 3) return;
 
     // ラグ補正: サーバー受信時刻 − 片道遅延(RTT/2, 上限あり)。クライアント申告タイムは信用しない
     const recv = Date.now() - c.startedAt;
     const comp = Math.min((p.socket.data.rtt || 0) / 2, cfg.maxLagCompMs);
     const adj = Math.max(0, recv - comp);
-    c.answered.add(uid);
 
-    if (choice === this.questions[c.index].answer) {
-      c.candidates.push({ uid, adj });
-      if (!c.firstCorrect) {
-        c.firstCorrect = uid;
-        this.io.to(this.id).emit('question:locked', { by: uid }); // 他の人の画面をロック
-        c.resolveTimer = this.after(cfg.buzzWindowMs, () => this.resolveQuestion());
-      }
-    } else {
-      c.wrong.add(uid); // お手つき
-      p.socket.emit('answer:result', { correct: false, choice });
-      this.io.to(this.id).emit('player:locked', { uid });
-      this.checkAllDone();
-    }
+    const correct = choice === this.questions[c.index].answer;
+    const secondary = correct && Math.random() < settings().secondaryChance;
+    const gain = correct ? (secondary ? 2 : 1) : 0;
+    c.answers.set(uid, { choice, correct, adj, gain, secondary });
+
+    p.socket.emit('answer:result', { correct, gain, secondary, choice });
+    this.io.to(this.id).emit('player:answered', { uid }); // 正誤は伏せる
+    this.checkAllDone();
   }
 
   checkAllDone() {
     const c = this.cur;
-    if (c.done || c.firstCorrect) return;
+    if (!c || c.done) return;
     const alive = this.players.filter((p) => p.connected);
-    if (alive.every((p) => c.answered.has(p.uid))) this.endQuestion(null, 0);
+    if (alive.every((p) => c.answers.has(p.uid))) this.endQuestion();
   }
 
-  resolveQuestion() {
+  endQuestion() {
     const c = this.cur;
-    if (c.done) return;
-    const best = [...c.candidates].sort((a, b) => a.adj - b.adj)[0];
-    this.endQuestion(best.uid, best.adj);
-  }
-
-  endQuestion(winnerUid, winnerMs) {
-    const c = this.cur;
-    if (c.done) return;
+    if (!c || c.done) return;
     c.done = true;
     this.clear(c.timeoutTimer);
-    this.clear(c.resolveTimer);
 
     const limit = limitSec();
+    const results = {};
     for (const p of this.players) {
-      const cand = c.candidates.find((x) => x.uid === p.uid);
-      let t;
-      if (cand) t = cand.adj / 1000;                       // 正解した人は自分のタイム
-      else if (c.wrong.has(p.uid)) t = limit;              // お手つきは60秒扱い
-      else t = winnerUid ? winnerMs / 1000 : limit;        // 未回答は決着時刻(誰も正解なしなら60秒)
+      const a = c.answers.get(p.uid);
+      const t = a?.correct ? a.adj / 1000 : limit; // 誤答・未回答は60秒扱い
       p.times.push(Math.min(t, limit));
+      if (a) {
+        p.score += a.gain;
+        if (a.secondary) p.secondaries += 1;
+        results[p.uid] = { choice: a.choice, correct: a.correct, gain: a.gain, secondary: a.secondary, timeSec: Math.round(t * 100) / 100 };
+      } else {
+        results[p.uid] = { choice: null, correct: false, gain: 0, secondary: false, timeSec: limit };
+      }
     }
-    if (winnerUid) this.byUid(winnerUid).score += 1;
 
     const q = this.questions[c.index];
     this.io.to(this.id).emit('question:result', {
-      index: c.index, correctIndex: q.answer, explanation: q.explanation,
-      winnerUid, scores: Object.fromEntries(this.players.map((p) => [p.uid, p.score])),
+      index: c.index, correctIndex: q.answer, explanation: q.explanation, results,
+      scores: Object.fromEntries(this.players.map((p) => [p.uid, p.score])),
     });
 
     const last = c.index + 1 >= this.questions.length;
@@ -156,11 +146,14 @@ export class Room {
 
     try {
       for (const p of this.players) {
-        const fresh = await store.getOrCreateUser(p.uid, p.name, p.photoURL);
+        const fresh = await store.getUser(p.uid);
+        if (!fresh) continue;
+        const won = p.delta > 0;
         const next = applyDelta(fresh, p.delta);
         next.games = (fresh.games || 0) + 1;
-        next.wins = (fresh.wins || 0) + (p.delta > 0 ? 1 : 0);
+        next.wins = (fresh.wins || 0) + (won ? 1 : 0);
         next.losses = (fresh.losses || 0) + (p.delta < 0 ? 1 : 0);
+        next.missions = missions.recordMatch(fresh, won);
         await store.updateUser(p.uid, next);
         p.profile = next;
       }
@@ -176,22 +169,17 @@ export class Room {
     const emperors = getEmperorSet();
     const infoOf = (p) => (p.profile ? rankInfo(p.profile, emperors) : { label: p.rankLabel, key: p.rankKey, sub: p.rankSub });
     this.io.to(this.id).emit('match:end', {
+      roomId: this.id,
       total: this.questions.length,
       results: sorted.map((p) => ({
-        uid: p.uid, name: p.name, photoURL: p.photoURL, score: p.score,
+        uid: p.uid, name: p.name, iconId: p.iconId, score: p.score, secondaries: p.secondaries,
         avgTime: Math.round(p.avgTime * 100) / 100, place: p.place, delta: p.delta,
         rank: infoOf(p).label, rankKey: infoOf(p).key, rankSub: infoOf(p).sub,
         pt: p.profile?.pt ?? null, mr: p.profile?.mr ?? null,
       })),
     });
     for (const p of this.players) {
-      if (p.profile) {
-        const x = p.profile;
-        p.socket.emit('profile', {
-          uid: x.uid, displayName: x.displayName, photoURL: x.photoURL, email: x.email, pt: x.pt, mr: x.mr, isMaster: x.isMaster,
-          wins: x.wins, losses: x.losses, games: x.games, isAdmin: !!p.socket.data.isAdmin, rank: rankInfo(x, emperors),
-        });
-      }
+      if (p.profile) p.socket.emit('profile', profilePayload(p.profile, p.socket.data.isAdmin));
     }
     this.close();
   }

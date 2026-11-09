@@ -7,12 +7,18 @@ import { cfg } from './config.js';
 import * as store from './store.js';
 import { reloadQuestions, seedIfEmpty, pickQuestions, publishedCount } from './questions.js';
 import { mountAdmin } from './admin.js';
+import { mountApi } from './api.js';
+import { loadSettings } from './settings.js';
+import { profilePayload } from './profile.js';
+import * as presence from './presence.js';
+import * as missions from './missions.js';
 import { Matchmaker } from './matchmaker.js';
 import { Room } from './game.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet, startEmperorRefresh } from './emperors.js';
 
 store.initStore();
+await loadSettings();
 await seedIfEmpty();
 await reloadQuestions();
 startEmperorRefresh();
@@ -25,10 +31,6 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: cfg.origin } });
 
 const roomsByUid = new Map();
-const profilePayload = (p, isAdmin) => ({
-  uid: p.uid, displayName: p.displayName, photoURL: p.photoURL, email: p.email, pt: p.pt, mr: p.mr, isMaster: p.isMaster,
-  wins: p.wins, losses: p.losses, games: p.games, isAdmin: !!isAdmin, rank: rankInfo(p, getEmperorSet()),
-});
 
 const matchmaker = new Matchmaker((group) => {
   const questions = pickQuestions();
@@ -44,6 +46,7 @@ const matchmaker = new Matchmaker((group) => {
 });
 
 mountAdmin(app, { io, matchmaker });
+mountApi(app);
 
 io.use(async (socket, next) => {
   let user;
@@ -75,7 +78,14 @@ function measureRtt(socket) {
 
 io.on('connection', async (socket) => {
   const { uid, name, photoURL, email, isAdmin } = socket.data;
-  socket.emit('profile', profilePayload(socket.data.profile, isAdmin));
+  const wasOnline = presence.isOnline(uid);
+  presence.add(uid);
+  if (!wasOnline) {
+    // ログイン時刻の記録とデイリーミッション「ログインする」の達成
+    await store.updateUser(uid, { lastLoginAt: Date.now(), missions: missions.touchLogin(socket.data.profile) });
+  }
+  const current = await store.getUser(uid);
+  socket.emit('profile', profilePayload(current, isAdmin));
 
   measureRtt(socket);
   const rttTimer = setInterval(() => measureRtt(socket), 5000);
@@ -87,19 +97,9 @@ io.on('connection', async (socket) => {
     if (fresh.banned) return;
     const info = rankInfo(fresh, getEmperorSet());
     matchmaker.join({
-      uid, name: fresh.displayName || name, photoURL, socket, rating: ratingValue(fresh),
+      uid, name: fresh.displayName || name, iconId: fresh.iconId || 'default', socket, rating: ratingValue(fresh),
       rankLabel: info.label, rankKey: info.key, rankSub: info.sub,
     });
-  });
-
-  socket.on('profile:setName', async (raw, ack) => {
-    const n = typeof raw === 'string' ? raw.trim() : '';
-    if (n.length < 1 || n.length > 16) return ack?.({ ok: false, error: '表示名は1〜16文字で入力してください' });
-    await store.updateUser(uid, { displayName: n });
-    const fresh = await store.getOrCreateUser(uid, name, photoURL, email);
-    socket.data.name = n;
-    socket.emit('profile', profilePayload(fresh, isAdmin));
-    ack?.({ ok: true });
   });
 
   socket.on('queue:leave', () => matchmaker.leave(uid));
@@ -111,6 +111,7 @@ io.on('connection', async (socket) => {
 
   socket.on('disconnect', () => {
     clearInterval(rttTimer);
+    if (presence.remove(uid) === 0) store.updateUser(uid, { lastSeenAt: Date.now() }).catch(() => {});
     matchmaker.leave(uid);
     roomsByUid.get(uid)?.onDisconnect(uid);
   });

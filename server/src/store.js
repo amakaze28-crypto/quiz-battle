@@ -39,24 +39,64 @@ export async function verifyToken(token) {
 // ---------- users ----------
 const defaults = (uid, name, photoURL, email) => ({
   uid, displayName: name, photoURL, email, pt: 0, mr: null, isMaster: false, wins: 0, losses: 0, games: 0, banned: false,
+  coins: 0, iconId: 'default', ownedIcons: ['default'], nameChanges: 0, joinedAt: Date.now(),
+  friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastNoticeSeen: 0, lastLoginAt: 0, lastSeenAt: 0,
 });
+
+const FILL = { coins: 0, iconId: 'default', ownedIcons: ['default'], nameChanges: 0, friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, lastNoticeSeen: 0, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0 };
+function norm(u) {
+  const o = { ...u };
+  for (const [k, v] of Object.entries(FILL)) {
+    if (o[k] === undefined) o[k] = Array.isArray(v) ? [...v] : (v && typeof v === 'object' ? { ...v } : v);
+  }
+  return o;
+}
+
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+async function uniqueCode() {
+  for (;;) {
+    let c = '';
+    for (let i = 0; i < 8; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    if (!(await findUserByFriendCode(c))) return c;
+  }
+}
+
+export async function findUserByFriendCode(code) {
+  if (useFirebase) {
+    const snap = await db.collection('users').where('friendCode', '==', code).limit(1).get();
+    return snap.empty ? null : norm({ uid: snap.docs[0].id, ...snap.docs[0].data() });
+  }
+  const u = [...mem.values()].find((x) => x.friendCode === code);
+  return u ? norm(u) : null;
+}
+
+export async function getUser(uid) {
+  if (useFirebase) {
+    const snap = await db.collection('users').doc(uid).get();
+    return snap.exists ? norm({ uid, ...snap.data() }) : null;
+  }
+  return mem.has(uid) ? norm(mem.get(uid)) : null;
+}
 
 export async function getOrCreateUser(uid, name, photoURL, email = '') {
   if (useFirebase) {
     const ref = db.collection('users').doc(uid);
     const snap = await ref.get();
     if (snap.exists) {
-      const u = { uid, ...snap.data() };
-      if (!u.email && email) { u.email = email; await ref.set({ email }, { merge: true }); }
+      const u = norm({ uid, ...snap.data() });
+      const patch = {};
+      if (!u.email && email) { u.email = email; patch.email = email; }
+      if (!u.friendCode) { u.friendCode = await uniqueCode(); patch.friendCode = u.friendCode; }
+      if (Object.keys(patch).length) await ref.set(patch, { merge: true });
       return u;
     }
-    const data = defaults(uid, name, photoURL, email);
+    const data = { ...defaults(uid, name, photoURL, email), friendCode: await uniqueCode() };
     const { uid: _u, ...body } = data;
     await ref.set({ ...body, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     return data;
   }
-  if (!mem.has(uid)) mem.set(uid, defaults(uid, name, photoURL, email));
-  return { ...mem.get(uid) };
+  if (!mem.has(uid)) mem.set(uid, { ...defaults(uid, name, photoURL, email), friendCode: await uniqueCode() });
+  return norm(mem.get(uid));
 }
 
 export async function updateUser(uid, fields) {
@@ -68,9 +108,9 @@ export async function updateUser(uid, fields) {
 export async function listUsers(limit = 2000) {
   if (useFirebase) {
     const snap = await db.collection('users').limit(limit).get();
-    return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    return snap.docs.map((d) => norm({ uid: d.id, ...d.data() }));
   }
-  return [...mem.values()].map((u) => ({ ...u }));
+  return [...mem.values()].map((u) => norm(u));
 }
 
 export async function getTopMasters(limit = 100) {
@@ -137,4 +177,32 @@ export async function updateQuestion(id, fields) {
 export async function deleteQuestion(id) {
   if (useFirebase) await db.collection('questions').doc(id).delete();
   else memQ.delete(id);
+}
+
+// ---------- 汎用コレクション (mails / notices / icons / reports / settings) ----------
+const memCols = new Map();
+const memCol = (n) => { if (!memCols.has(n)) memCols.set(n, new Map()); return memCols.get(n); };
+
+export async function colList(name) {
+  if (useFirebase) return (await db.collection(name).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  return [...memCol(name).values()].map((x) => ({ ...x }));
+}
+export async function colGet(name, id) {
+  if (useFirebase) { const d = await db.collection(name).doc(id).get(); return d.exists ? { id, ...d.data() } : null; }
+  const v = memCol(name).get(id);
+  return v ? { ...v } : null;
+}
+export async function colAdd(name, data) {
+  if (useFirebase) return (await db.collection(name).add(data)).id;
+  const id = `${name[0]}${memSeq++}`;
+  memCol(name).set(id, { id, ...data });
+  return id;
+}
+export async function colSet(name, id, data) {
+  if (useFirebase) await db.collection(name).doc(id).set(data, { merge: true });
+  else memCol(name).set(id, { ...(memCol(name).get(id) || {}), id, ...data });
+}
+export async function colDel(name, id) {
+  if (useFirebase) await db.collection(name).doc(id).delete();
+  else memCol(name).delete(id);
 }

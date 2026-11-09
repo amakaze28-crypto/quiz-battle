@@ -1,8 +1,8 @@
-const BASE = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
-export async function adminApi(user, path, { method = 'GET', body } = {}) {
+async function req(user, prefix, path, { method = 'GET', body } = {}) {
   const token = await user.getIdToken();
-  const res = await fetch(`${BASE}/admin${path}`, {
+  const res = await fetch(`${SERVER_URL}${prefix}${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -11,3 +11,6 @@ export async function adminApi(user, path, { method = 'GET', body } = {}) {
   if (!res.ok) throw new Error(data.error || `エラー (${res.status})`);
   return data;
 }
+
+export const adminApi = (user, path, opts) => req(user, '/admin', path, opts);
+export const callApi = (user, path, opts) => req(user, '/api', path, opts);

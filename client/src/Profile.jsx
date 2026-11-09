@@ -1,17 +1,22 @@
 import RankBadge from './RankBadge';
+import { Avatar, Coin } from './Parts';
 
 export default function Profile({ profile }) {
   if (!profile) return <p>読み込み中…</p>;
   const r = profile.rank;
-  const progress = r.nextAt ? Math.min(100, ((profile.pt - r.subStart) / (r.nextAt - r.subStart)) * 100) : 100;
+  const progress = r.nextAt ? Math.min(100, Math.max(0, ((profile.pt - r.subStart) / (r.nextAt - r.subStart)) * 100)) : 100;
   const rate = profile.games ? Math.round((profile.wins / profile.games) * 100) : 0;
 
   return (
     <div className="text-center">
       <h1 className="text-xl font-bold mb-4">プロフィール</h1>
-      <div className="flex justify-center"><RankBadge rank={r} size={160} /></div>
+      <div className="flex justify-center items-end gap-4">
+        <RankBadge rank={r} size={150} />
+        <Avatar iconId={profile.iconId} size={72} className="ring-2 ring-white/30" />
+      </div>
       <p className="mt-2 text-3xl font-extrabold">{r.label}</p>
-      <p className="text-slate-300 mb-4">{profile.displayName}</p>
+      <p className="text-slate-300">{profile.displayName}</p>
+      <p className="mb-4"><Coin n={profile.coins} size={20} className="text-amber-300" /></p>
 
       <div className="rounded-2xl bg-[#171a20] p-5 text-left">
         {profile.isMaster ? (
@@ -27,6 +32,10 @@ export default function Profile({ profile }) {
             <div key={k}><div className="text-xs text-slate-400">{k}</div><div className="text-lg font-bold">{v}</div></div>
           ))}
         </div>
+      </div>
+      <div className="rounded-2xl bg-[#171a20] p-4 mt-3 text-left">
+        <p className="text-xs text-slate-400">フレンドコード</p>
+        <p className="text-xl font-mono font-extrabold tracking-widest">{profile.friendCode}</p>
       </div>
     </div>
   );

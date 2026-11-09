@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+import { SERVER_URL } from './api';
 
 export function useGame(user) {
   const sockRef = useRef(null);
@@ -40,12 +39,11 @@ export function useGame(user) {
       setScores(Object.fromEntries(m.players.map((p) => [p.uid, 0])));
     });
     s.on('question', (d) => {
-      setQ({ ...d, recvAt: performance.now(), myChoice: null, lockedBy: null, wrong: false, lockedUids: [], result: null });
+      setQ({ ...d, recvAt: performance.now(), myChoice: null, mine: null, answeredUids: [], result: null });
       setPhase('playing');
     });
-    s.on('question:locked', ({ by }) => setQ((x) => x && { ...x, lockedBy: by }));
-    s.on('player:locked', ({ uid }) => setQ((x) => x && { ...x, lockedUids: [...x.lockedUids, uid] }));
-    s.on('answer:result', ({ correct }) => setQ((x) => x && { ...x, wrong: !correct }));
+    s.on('player:answered', ({ uid }) => setQ((x) => x && { ...x, answeredUids: [...x.answeredUids, uid] }));
+    s.on('answer:result', (r) => setQ((x) => x && { ...x, mine: r }));
     s.on('question:result', (r) => { setScores(r.scores); setQ((x) => x && { ...x, result: r }); });
     s.on('match:end', (r) => { setResult(r); setPhase('result'); });
 
@@ -58,16 +56,10 @@ export function useGame(user) {
 
   const answer = useCallback((choice) => {
     const x = qRef.current;
-    if (!x || x.myChoice !== null || x.lockedBy || x.result) return;
+    if (!x || x.myChoice !== null || x.result) return;
     sockRef.current?.emit('answer', { index: x.index, choice, clientMs: Math.round(performance.now() - x.recvAt) });
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  const setName = useCallback((name) => new Promise((resolve) => {
-    const s = sockRef.current;
-    if (!s) return resolve({ ok: false, error: '未接続です' });
-    s.timeout(5000).emit('profile:setName', name, (err, res) => resolve(err ? { ok: false, error: '通信に失敗しました' } : res));
-  }), []);
-
-  return { conn, banReason, setName, profile, phase, queue, match, q, scores, result, error, joinQueue, leaveQueue, goHome, answer };
+  return { conn, banReason, setProfile, profile, phase, queue, match, q, scores, result, error, joinQueue, leaveQueue, goHome, answer };
 }

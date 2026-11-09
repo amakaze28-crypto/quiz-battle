@@ -1,27 +1,47 @@
+import { useState } from 'react';
 import RankBadge from './RankBadge';
+import { Avatar } from './Parts';
+import ReportModal from './ReportModal';
 
-export default function Result({ g, myUid }) {
-  const { result, goHome } = g;
+export default function Result({ g, user }) {
+  const { result, goHome, profile } = g;
+  const myUid = profile?.uid;
+  const [report, setReport] = useState(null); // 通報対象のuid
+
   return (
     <div className="min-h-screen bg-[#0e1013] text-white p-6 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4 text-center">試合結果</h1>
       <div className="space-y-3 mb-6">
         {result.results.map((r) => (
-          <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-800' : 'bg-[#171a20]'}`}>
+          <div key={r.uid} className={`rounded-xl p-4 ${r.uid === myUid ? 'bg-sky-900' : 'bg-[#171a20]'}`}>
             <div className="flex justify-between items-center">
-              <span className="font-bold flex items-center gap-2"><RankBadge rank={{ key: r.rankKey, sub: r.rankSub, label: r.rank }} size={36} />{r.place}位　{r.name}</span>
+              <span className="font-bold flex items-center gap-2 min-w-0">
+                <Avatar iconId={r.iconId} size={36} />
+                <span className="truncate">{r.place}位　{r.name}</span>
+              </span>
               <span className={`text-xl font-extrabold ${r.delta > 0 ? 'text-emerald-400' : r.delta < 0 ? 'text-red-400' : ''}`}>
                 {r.delta > 0 ? '+' : ''}{r.delta}
               </span>
             </div>
-            <div className="text-sm text-slate-300">
-              正解 {r.score}/{result.total}　平均 {r.avgTime}秒　→ {r.rank}
-              {r.mr != null ? `（${r.mr} MR）` : r.pt != null ? `（${r.pt} pt）` : ''}
+            <div className="mt-2 flex items-center gap-2 text-sm text-slate-300">
+              <RankBadge rank={{ key: r.rankKey, sub: r.rankSub, label: r.rank }} size={32} />
+              <span>
+                {r.score}点{r.secondaries > 0 && <span className="text-orange-300">（★{r.secondaries}回）</span>}　平均 {r.avgTime}秒　→ {r.rank}
+                {r.mr != null ? `（${r.mr} MR）` : r.pt != null ? `（${r.pt} pt）` : ''}
+              </span>
             </div>
+            {r.uid !== myUid && (
+              <div className="mt-2 text-right"><button onClick={() => setReport(r.uid)} className="text-xs text-red-300 underline">通報</button></div>
+            )}
           </div>
         ))}
       </div>
       <button onClick={goHome} className="w-full py-4 rounded-2xl bg-emerald-500 text-xl font-bold">ホームに戻る</button>
+      {report && (
+        <ReportModal user={user} roomId={result.roomId} initialUid={report}
+          players={result.results.filter((r) => r.uid !== myUid).map((r) => ({ uid: r.uid, name: r.name, iconId: r.iconId }))}
+          onClose={() => setReport(null)} />
+      )}
     </div>
   );
 }
