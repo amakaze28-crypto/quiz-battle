@@ -56,10 +56,8 @@ function Authed({ user }) {
 
   // 効果音
   const qIndex = g.q?.index;
-  const mineKey = g.q?.mine ? (g.q.mine.secondary ? 's' : g.q.mine.correct ? 'c' : 'w') : null;
   useEffect(() => { if (g.phase === 'matched') sfx('match'); }, [g.phase]);
   useEffect(() => { if (g.phase === 'playing' && qIndex !== undefined) sfx('question'); }, [qIndex]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (mineKey) sfx(mineKey === 's' ? 'secondary' : mineKey === 'c' ? 'correct' : 'wrong'); }, [mineKey, qIndex]);
   useEffect(() => {
     if (g.phase !== 'result' || !g.result) return;
     const me = g.result.results.find((r) => r.uid === g.profile?.uid);

@@ -12,38 +12,63 @@ const listeners = new Set();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* 保存できなくても動く */ } listeners.forEach((f) => f(state)); };
 
 let want = null;      // 流したいBGM名
-let cur = null;       // { name, el }
+let cur = null;       // { name, src, gain }
 let unlocked = false;
 let hidden = false;
-const els = {};
 const seBase = {};
 
-const bgmEl = (name) => {
-  if (!els[name]) { const a = new Audio(BGM[name]); a.loop = true; a.preload = 'auto'; els[name] = a; }
-  return els[name];
+// BGMはWeb Audioで途切れなくループさせる（<audio loop>だとループの継ぎ目に隙間ができるため）。
+// 曲の先頭・末尾の無音は読み込み時に検出して、ループ範囲から取り除く。
+let ctx = null;
+const getCtx = () => {
+  if (!ctx) { const C = window.AudioContext || window.webkitAudioContext; if (C) ctx = new C(); }
+  return ctx;
 };
-
-function fade(el, to, ms, done) {
-  const from = el.volume; const t0 = performance.now();
-  clearInterval(el._fade);
-  el._fade = setInterval(() => {
-    const k = Math.min(1, (performance.now() - t0) / ms);
-    el.volume = Math.max(0, Math.min(1, from + (to - from) * k));
-    if (k >= 1) { clearInterval(el._fade); done?.(); }
-  }, 40);
+const loaded = {};
+function loadBgm(name) {
+  if (!loaded[name]) {
+    loaded[name] = fetch(BGM[name]).then((r) => r.arrayBuffer()).then((ab) => new Promise((res, rej) => getCtx().decodeAudioData(ab, res, rej))).then((buffer) => {
+      const th = 0.004; const n = buffer.length; const ch = [...Array(buffer.numberOfChannels)].map((_, i) => buffer.getChannelData(i));
+      const loud = (i) => ch.some((d) => Math.abs(d[i]) > th);
+      let s = 0; while (s < n - 1 && !loud(s)) s += 1;
+      let e = n - 1; while (e > s && !loud(e)) e -= 1;
+      return { buffer, start: s / buffer.sampleRate, end: (e + 1) / buffer.sampleRate };
+    }).catch((err) => { delete loaded[name]; throw err; });
+  }
+  return loaded[name];
 }
 
-function apply() {
+function stopCur(fadeMs = 500) {
+  if (!cur) return;
+  const { src, gain } = cur; cur = null;
+  const t = ctx.currentTime;
+  gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(0, t + fadeMs / 1000);
+  setTimeout(() => { try { src.stop(); } catch { /* 停止済み */ } }, fadeMs + 80);
+}
+
+async function apply() {
   const target = state.bgm && !hidden && unlocked ? want : null;
-  if (cur && cur.name === target) { cur.el.volume = state.bgmVol; return; }
-  if (cur) { const old = cur.el; fade(old, 0, 500, () => old.pause()); cur = null; }
+  if (cur && cur.name === target) {
+    const t = ctx.currentTime; cur.gain.gain.cancelScheduledValues(t); cur.gain.gain.setValueAtTime(cur.gain.gain.value, t); cur.gain.gain.linearRampToValueAtTime(state.bgmVol, t + 0.1);
+    return;
+  }
+  if (!getCtx()) return;
+  stopCur();
   if (!target) return;
-  const el = bgmEl(target);
-  el.volume = 0;
-  const p = el.play();
-  if (p?.catch) p.catch(() => { unlocked = false; }); // 再生を拒否された場合は次のタップで再試行
-  cur = { name: target, el };
-  fade(el, state.bgmVol, 700);
+  try {
+    if (ctx.state === 'suspended') await ctx.resume();
+    const { buffer, start, end } = await loadBgm(target);
+    // 読み込み中に曲が変わっていたら何もしない
+    if (want !== target || !(state.bgm && !hidden && unlocked) || (cur && cur.name === target)) return;
+    stopCur(0);
+    const src = ctx.createBufferSource(); const gain = ctx.createGain();
+    src.buffer = buffer; src.loop = true; src.loopStart = start; src.loopEnd = end;
+    gain.gain.value = 0; src.connect(gain); gain.connect(ctx.destination);
+    src.start(0, start);
+    gain.gain.linearRampToValueAtTime(state.bgmVol, ctx.currentTime + 0.7);
+    cur = { name: target, src, gain };
+    for (const k of Object.keys(loaded)) if (k !== target) delete loaded[k]; // デコード済みデータ(大きい)は使う曲だけ保持
+  } catch { unlocked = false; /* 再生できなければ次のタップで再試行 */ }
 }
 
 export const playBgm = (name) => { want = name; apply(); };
@@ -62,7 +87,7 @@ export const subscribeAudio = (f) => { listeners.add(f); return () => listeners.
 
 // 最初のタップで再生を解禁し、ボタンを押したら操作音を鳴らす
 export function initAudio() {
-  const unlock = () => { if (!unlocked) { unlocked = true; apply(); } };
+  const unlock = () => { getCtx()?.resume?.(); if (!unlocked) { unlocked = true; apply(); } };
   document.addEventListener('pointerdown', unlock, { capture: true });
   document.addEventListener('keydown', unlock, { capture: true });
   document.addEventListener('click', (e) => {
@@ -70,6 +95,5 @@ export function initAudio() {
     if (b && !b.disabled && !b.dataset.nosfx) sfx('tap');
   }, true);
   document.addEventListener('visibilitychange', () => { hidden = document.hidden; apply(); });
-  Object.keys(BGM).forEach((n) => bgmEl(n)); // 先読み
   SE.forEach((n) => { seBase[n] = new Audio(`/audio/se-${n}.mp3`); seBase[n].preload = 'auto'; });
 }

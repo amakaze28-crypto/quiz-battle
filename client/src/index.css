@@ -32,3 +32,9 @@ body { background: transparent; color: #fff; overscroll-behavior: none; -webkit-
 .ui-input:focus { border-color: #f1d58a; box-shadow: 0 0 0 2px rgba(241,213,138,.25); }
 .ui-title { font-family: "Hiragino Mincho ProN","Yu Mincho",serif; font-weight: 800; letter-spacing: .08em; color: #f6e4b0; text-shadow: 0 1px 3px rgba(0,0,0,.8), 0 0 10px rgba(255,214,120,.25); }
 .ui-spinner { width: 44px; height: 44px; border-radius: 9999px; border: 4px solid rgba(246,228,176,.25); border-top-color: #f6e4b0; animation: spin 1s linear infinite; }
+
+@keyframes markpop { 0% { opacity: 0; transform: scale(.3); } 25% { opacity: 1; transform: scale(1.15); } 40% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+.mark-pop { animation: markpop 1.25s ease-out both; }
+@keyframes secin { 0% { opacity: 0; transform: scale(2.4); } 18% { opacity: 1; transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes secflash { 0% { opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes secglow { 0%,100% { text-shadow: 0 0 18px #ff9d2e, 0 4px 10px #000; } 50% { text-shadow: 0 0 42px #ffd36b, 0 4px 10px #000; } }

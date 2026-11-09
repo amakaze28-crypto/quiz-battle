@@ -52,9 +52,17 @@ export class Room {
     this.after(cfg.countdownMs, () => this.startQuestion(0));
   }
 
+  // Secondaryは「問題」に付く。当たった問題は、出題の前に全員へ告知され、その問題の得点が全員2倍になる
   startQuestion(index) {
+    const secondary = Math.random() < settings().secondaryChance;
+    if (!secondary) return this.openQuestion(index, false);
+    this.io.to(this.id).emit('secondary:intro', { index, ms: cfg.secondaryIntroMs });
+    this.after(cfg.secondaryIntroMs, () => this.openQuestion(index, true));
+  }
+
+  openQuestion(index, secondary) {
     const q = this.questions[index];
-    this.cur = { index, startedAt: Date.now(), done: false, answers: new Map(), timeoutTimer: null };
+    this.cur = { index, secondary, startedAt: Date.now(), done: false, answers: new Map(), timeoutTimer: null };
     this.cur.timeoutTimer = this.after(cfg.questionTimeMs, () => this.endQuestion());
     // botは、同ランク帯の平均正答率・平均秒数から決めたタイミングで解答する
     for (const p of this.players) {
@@ -64,7 +72,7 @@ export class Room {
     }
     // 正解・解説は送らない
     this.io.to(this.id).emit('question', {
-      index, total: this.questions.length, id: q.id, question: q.question, choices: q.choices,
+      index, total: this.questions.length, id: q.id, question: q.question, choices: q.choices, secondary,
       timeLimitMs: cfg.questionTimeMs, serverTime: Date.now(),
     });
   }
@@ -84,7 +92,7 @@ export class Room {
     const adj = Math.max(0, recv - comp);
 
     const correct = choice === this.questions[c.index].answer;
-    const secondary = correct && Math.random() < settings().secondaryChance;
+    const secondary = correct && c.secondary; // 問題がSecondaryなら、正解した全員が2倍
     const gain = correct ? (secondary ? 2 : 1) : 0;
     c.answers.set(uid, { choice, correct, adj, gain, secondary });
 
@@ -127,6 +135,9 @@ export class Room {
     this.io.to(this.id).emit('question:result', {
       index: c.index, correctIndex: q.answer, explanation: q.explanation, results,
       scores: Object.fromEntries(this.players.map((p) => [p.uid, p.score])),
+      secondary: c.secondary,
+      // 現在の順位（得点 → 平均解答時間）。最終の計算前から平均解答時間が順位に効く
+      avgTimes: Object.fromEntries(this.players.map((p) => [p.uid, Math.round(mean(p.times) * 100) / 100])),
     });
 
     const last = c.index + 1 >= this.questions.length;

@@ -12,6 +12,8 @@ export function useGame(user) {
   const [match, setMatch] = useState(null);
   const [q, setQ] = useState(null);
   const [scores, setScores] = useState({});
+  const [avgTimes, setAvgTimes] = useState({});
+  const [secIntro, setSecIntro] = useState(null); // Secondary告知 { at, ms }
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [banReason, setBanReason] = useState('');
@@ -37,14 +39,17 @@ export function useGame(user) {
     s.on('match:found', (m) => {
       setMatch(m); setQueue(null); setPhase('matched');
       setScores(Object.fromEntries(m.players.map((p) => [p.uid, 0])));
+      setAvgTimes({}); setSecIntro(null);
     });
+    s.on('secondary:intro', (d) => setSecIntro({ at: performance.now(), ms: d.ms }));
     s.on('question', (d) => {
       setQ({ ...d, recvAt: performance.now(), myChoice: null, mine: null, answeredUids: [], result: null });
+      setSecIntro(null);
       setPhase('playing');
     });
     s.on('player:answered', ({ uid }) => setQ((x) => x && { ...x, answeredUids: [...x.answeredUids, uid] }));
     s.on('answer:result', (r) => setQ((x) => x && { ...x, mine: r }));
-    s.on('question:result', (r) => { setScores(r.scores); setQ((x) => x && { ...x, result: r }); });
+    s.on('question:result', (r) => { setScores(r.scores); setAvgTimes(r.avgTimes || {}); setQ((x) => x && { ...x, result: r }); });
     s.on('match:end', (r) => { setResult(r); setPhase('result'); });
 
     return () => { s.disconnect(); };
@@ -52,7 +57,7 @@ export function useGame(user) {
 
   const joinQueue = useCallback(() => { setError(null); setPhase('queue'); sockRef.current?.emit('queue:join'); }, []);
   const leaveQueue = useCallback(() => { sockRef.current?.emit('queue:leave'); setQueue(null); setPhase('home'); }, []);
-  const goHome = useCallback(() => { setPhase('home'); setResult(null); setMatch(null); setQ(null); }, []);
+  const goHome = useCallback(() => { setSecIntro(null); setPhase('home'); setResult(null); setMatch(null); setQ(null); }, []);
 
   const answer = useCallback((choice) => {
     const x = qRef.current;
@@ -61,5 +66,5 @@ export function useGame(user) {
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  return { conn, banReason, setProfile, profile, phase, queue, match, q, scores, result, error, joinQueue, leaveQueue, goHome, answer };
+  return { conn, banReason, setProfile, profile, phase, queue, match, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
 }

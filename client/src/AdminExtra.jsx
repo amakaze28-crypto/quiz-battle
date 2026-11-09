@@ -223,7 +223,7 @@ export function SettingsAdmin({ user }) {
         ))}
         <h2 className="font-bold mt-3 mb-1">その他</h2>
         <Field label="改名コスト（2回目以降・コイン）"><Num value={s.renameCost} onChange={(v) => setS({ ...s, renameCost: v })} /></Field>
-        <Field label="Secondary(得点2倍)の確率 %"><Num value={Math.round(s.secondaryChance * 1000) / 10} step={0.5} max={100} onChange={(v) => setS({ ...s, secondaryChance: v / 100 })} /></Field>
+        <Field label="Secondary(その問題が全員2倍)になる確率 %"><Num value={Math.round(s.secondaryChance * 1000) / 10} step={0.5} max={100} onChange={(v) => setS({ ...s, secondaryChance: v / 100 })} /></Field>
       </div>
 
       <div className={card}>

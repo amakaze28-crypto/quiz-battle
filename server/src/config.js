@@ -11,6 +11,7 @@ export const cfg = {
   questionTimeMs: Number(process.env.QUESTION_TIME_MS) || 60000, // 1問1分
   resultPauseMs: Number(process.env.RESULT_PAUSE_MS) || 3500,
   countdownMs: Number(process.env.COUNTDOWN_MS) || 4000,
+  secondaryIntroMs: 2800, // Secondary告知の表示時間
   buzzWindowMs: 150, // 最初の正解到着後、この間に届いた正解の中から補正タイムが最速の人を勝者にする
   maxLagCompMs: 250, // ラグ補正の上限（片道遅延の補正は最大この値まで）
   matchBaseRange: 300, // 初期のレート許容差
