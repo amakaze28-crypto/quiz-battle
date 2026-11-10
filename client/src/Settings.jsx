@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Coin } from './Parts';
 import { Panel, Title, Btn } from './Ui';
 import AudioPanel from './AudioPanel';
+import Terms, { CONTACT_EMAIL } from './Terms';
 
 export default function Settings({ profile, call }) {
   const [name, setName] = useState(profile?.displayName || '');
   const [msg, setMsg] = useState(null);
+  const [terms, setTerms] = useState(false);
   const free = (profile?.nameChanges ?? 0) === 0;
 
   const save = async () => {
@@ -30,6 +32,12 @@ export default function Settings({ profile, call }) {
         <h2 className="ui-title text-lg mb-1">サウンド</h2>
         <AudioPanel />
       </Panel>
+      <Panel className="p-3 mt-3">
+        <h2 className="ui-title text-lg mb-1">規約・お問い合わせ</h2>
+        <Btn variant="blue" onClick={() => setTerms(true)}>利用規約・プライバシーポリシー</Btn>
+        <p className="text-sm text-slate-300 mt-2">お問い合わせ：<a className="underline text-sky-300 break-all" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+      </Panel>
+      {terms && <Terms mode="view" onClose={() => setTerms(false)} />}
     </div>
   );
 }

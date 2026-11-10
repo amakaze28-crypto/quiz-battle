@@ -5,6 +5,7 @@ import { callApi } from './api';
 import { useGame } from './useGame';
 import { useSummary } from './useSummary';
 import Layout from './Layout';
+import Terms, { hasAgreed } from './Terms';
 import Home from './Home';
 import Game from './Game';
 import Result from './Result';
@@ -144,13 +145,28 @@ export default function App() {
       return false;
     } finally { setBusy(false); }
   };
+  const [terms, setTerms] = useState(null); // null | 'consent' | 'view'
+  // ログインの前に利用規約への同意を確認する（同意済みならそのまま進む）
   const start = async () => {
     if (busy) return;
+    if (!hasAgreed()) { setTerms('consent'); return; } // 既存のログイン済みの人も、初回は同意を確認
     if (user || (await login())) setStarted(true);
+  };
+  const doLogin = async () => {
+    if (!hasAgreed()) { setTerms('consent'); return; }
+    if (await login()) setStarted(true);
   };
 
   useBgm(started && user ? null : 'title');
   if (user === undefined) return <Loading />;
-  if (!started || !user) return <Title user={user} onStart={start} onLogin={async () => { if (await login()) setStarted(true); }} onLogout={() => signOut(auth)} busy={busy} error={error} />;
+  if (!started || !user) {
+    return (
+      <>
+        <Title user={user} onStart={start} onLogin={doLogin} onLogout={() => signOut(auth)} busy={busy} error={error} />
+        <button onClick={() => setTerms('view')} className="fixed left-1/2 -translate-x-1/2 bottom-2 z-20 text-xs text-white/85 underline drop-shadow-[0_1px_3px_rgba(0,0,0,.9)]">利用規約・お問い合わせ</button>
+        {terms && <Terms mode={terms} onClose={() => setTerms(null)} onAgree={async () => { setTerms(null); if (user || (await login())) setStarted(true); }} />}
+      </>
+    );
+  }
   return <Authed user={user} />;
 }
