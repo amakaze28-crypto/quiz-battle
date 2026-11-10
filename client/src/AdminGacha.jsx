@@ -65,7 +65,7 @@ function GachaEditor({ user, g, items, sets, onSaved, onCancel }) {
       <p className="font-bold">{isNew ? '期間限定ガチャを追加' : `「${g.name}」を編集`}</p>
       <label className="block text-sm">ガチャ名<input className={input} maxLength={30} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <div>
-        <p className="text-sm mb-1">バナー画像（ガチャ画面の中央に大きく表示。横長 約1.9:1 がおすすめ）</p>
+        <p className="text-sm mb-1">バナー画像（ガチャ画面の中央に大きく表示。横長 約1.9:1 がおすすめ。高画質のまま保存されます）</p>
         <div className="flex items-center gap-3 flex-wrap">
           {shownBanner ? <img src={shownBanner} alt="" className="h-24 rounded object-cover aspect-[1000/535]" /> : <div className="h-24 aspect-[1000/535] rounded bg-slate-700 grid place-items-center text-xs text-slate-300">なし（標準の表示）</div>}
           <input type="file" accept="image/*" onChange={pickBanner} className="text-sm" />

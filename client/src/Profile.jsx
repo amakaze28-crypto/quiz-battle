@@ -77,6 +77,8 @@ function CardEditor({ user, profile, call }) {
   const cell = 'rounded-lg p-1.5 bg-black/25 flex items-center justify-center';
   const icons = items.filter((i) => i.type === 'icon');
   const chars = items.filter((i) => i.type === 'character');
+  const cards = items.filter((i) => i.type === 'card');
+  const frames = items.filter((i) => i.type === 'frame');
   return (
     <Panel className="p-3 mt-3 text-left">
       <h3 className="font-bold mb-2">カードの設定</h3>
@@ -84,6 +86,16 @@ function CardEditor({ user, profile, call }) {
       <p className="text-xs text-slate-300 mb-1">アイコン</p>
       <div className="grid grid-cols-5 gap-2 mb-3">
         {icons.map((i) => <button key={i.id} onClick={() => equip('icon', i.id)} className={`${cell} ${profile.iconId === i.id ? sel : ''}`}><Avatar iconId={i.id} size={48} /></button>)}
+      </div>
+      <p className="text-xs text-slate-300 mb-1">アイコンフレーム</p>
+      <div className="grid grid-cols-5 gap-2 mb-3 max-h-60 overflow-y-auto">
+        <button onClick={() => equip('frame', 'none')} className={`${cell} text-[10px] ${(profile.frameId || 'none') === 'none' ? sel : ''}`}>なし</button>
+        {frames.map((i) => <button key={i.id} onClick={() => equip('frame', i.id)} className={`${cell} ${profile.frameId === i.id ? sel : ''}`}><Avatar iconId={profile.iconId} frameId={i.id} size={44} /></button>)}
+      </div>
+      <p className="text-xs text-slate-300 mb-1">カードフレーム（{cards.length}）</p>
+      <div className="grid grid-cols-4 gap-2 mb-3 max-h-72 overflow-y-auto">
+        <button onClick={() => equip('card', 'none')} className={`${cell} text-[10px] min-h-[60px] ${(profile.cardId || 'none') === 'none' ? sel : ''}`}>標準</button>
+        {cards.map((i) => <button key={i.id} onClick={() => equip('card', i.id)} className={`${cell} ${profile.cardId === i.id ? sel : ''}`}><ItemPreview item={i} size="40px" /></button>)}
       </div>
       <p className="text-xs text-slate-300 mb-1">キャラクター（アイコンとは別）</p>
       <div className="grid grid-cols-4 gap-2 mb-3">

@@ -135,11 +135,17 @@ export async function fileToImage(file, type) {
   const bmp = await createImageBitmap(file);
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d');
-  if (type === 'gachabanner') { // ガチャのバナー: 約1.87:1(1000x535)に切り出し
-    c.width = 1000; c.height = 535;
-    const k = Math.max(1000 / bmp.width, 535 / bmp.height); const sw = 1000 / k; const sh = 535 / k;
-    ctx.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, 1000, 535);
-    return c.toDataURL('image/webp', 0.85);
+  if (type === 'gachabanner') { // ガチャのバナー: 1.87:1に切り出し。高画質（最大2000px幅・拡大はしない）。大きすぎる時だけ画質を下げる
+    const R = 535 / 1000;
+    let sw = bmp.width; let sh = sw * R;
+    if (sh > bmp.height) { sh = bmp.height; sw = sh / R; }
+    const W = Math.round(Math.min(2000, sw)); const H = Math.round(W * R);
+    c.width = W; c.height = H;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, W, H);
+    let out = '';
+    for (const q of [0.95, 0.9, 0.82, 0.74, 0.66, 0.55]) { out = c.toDataURL('image/webp', q); if (out.length < 4_300_000) break; }
+    return out;
   }
   if (type === 'banner') {
     c.width = 800; c.height = 200;
@@ -175,10 +181,20 @@ export function ItemsAdmin({ user }) {
     catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { alert(e.message); } };
+  const seed = async () => {
+    if (!confirm('同梱のアイコンフレーム120点・カードフレーム90点を、ガチャ（恒常）に登録します。よろしいですか？（登録済みのものはスキップ）')) return;
+    setMsg({ ok: true, text: '登録中…' });
+    try { const d = await adminApi(user, '/seed-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: `登録 ${d.added}点 / 既存 ${d.skipped}点` }); load(); }
+    catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
   const shown = data?.filter((i) => filter === 'all' || i.type === filter);
 
   return (
     <div>
+      <div className={`${card} mb-3 flex flex-wrap items-center gap-3`}>
+        <button onClick={seed} className={`${btn} bg-emerald-600 font-bold`}>同梱フレームを一括登録（アイコンフレーム120＋カード90）</button>
+        <span className="text-xs text-slate-400">コモン〜エピックの恒常ガチャに入ります。</span>
+      </div>
       <h2 className="font-bold mb-2">アイテムを追加</h2>
       <div className={`${card} space-y-3 mb-5 max-w-xl`}>
         <div className="flex gap-2">
@@ -192,6 +208,7 @@ export function ItemsAdmin({ user }) {
         </div>
         <p className="text-xs text-slate-400">
           {f.type === 'icon' && '中央を正方形に切り出して256pxに縮小します。'}
+          {f.type === 'card' && 'プレイヤーカード全体の枠（縦長の台紙画像）です。同梱の4種と同じ配置で表示されます。'}
           {f.type === 'frame' && 'アイコンに重ねる枠です。中央が透明な正方形のPNG／WebPを選んでください（透過は保たれます）。'}
           {f.type === 'character' && '全身の立ち絵（背景透過のPNG/WebP推奨・縦長）。プレイヤーカードに表示されます。'}
           {f.type === 'banner' && '横長(4:1)の画像がおすすめです。800×200に整えます。'}
@@ -222,7 +239,7 @@ export function ItemsAdmin({ user }) {
       <ul className="space-y-2">
         {shown?.map((i) => (
           <li key={i.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
-            {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : i.type === 'character' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
+            {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : (i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></p>
               <Sand n={i.price} size={18} className="text-amber-300 text-sm" />

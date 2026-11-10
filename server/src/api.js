@@ -9,7 +9,7 @@ import { rankInfo, ratingValue, TIERS, MASTER_START } from './rank.js';
 import { cfg } from './config.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
-import { listGachas, poolFor, isActive, costOf, NORMAL_ID } from './gachaDefs.js';
+import { listGachas, poolFor, isActive, costOf, NORMAL_ID, readBanner } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
 import * as badges from './badges.js';
 
@@ -131,7 +131,7 @@ export function mountApi(app) {
 
   // ---- フレンド ----
   const friendView = (f) => ({
-    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto', badgeInfo: badges.equippedBadge(f),
+    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', cardId: f.cardId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto', badgeInfo: badges.equippedBadge(f),
     rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), pt: f.pt || 0, mr: f.mr ?? null, isMaster: !!f.isMaster, online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
@@ -201,7 +201,7 @@ export function mountApi(app) {
 
   // ---- ショップ / ガチャ / 装備 ----
   const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, inGacha: !!i.inGacha });
-  const SLOTS = { icon: 'iconId', frame: 'frameId', banner: 'bannerId', character: 'charId' };
+  const SLOTS = { icon: 'iconId', frame: 'frameId', card: 'cardId', banner: 'bannerId', character: 'charId' };
   // 同梱の初期アイテム（画像ファイル）。slot ごとの装備可能ID
   const BUILTIN = { icon: ['default', 'default2'], character: ['char-m', 'char-f'] };
   const RANK = Object.fromEntries(RARITIES.map((x, i) => [x, i]));
@@ -216,7 +216,7 @@ export function mountApi(app) {
       .map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) }));
     const base = (id, name, type) => ({ id, name, type, rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
     items.unshift(base('default', '初期アイコン（男性）', 'icon'), base('default2', '初期アイコン（女性）', 'icon'), base('char-m', '初期キャラ（男性）', 'character'), base('char-f', '初期キャラ（女性）', 'character'));
-    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, banner: u.bannerId, character: u.charId }, items });
+    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, card: u.cardId || 'none', banner: u.bannerId, character: u.charId }, items });
   }));
 
   r.post('/shop/buy', wrap(async (req, res) => {
@@ -475,9 +475,9 @@ export function mountApi(app) {
   app.get('/gacha-banner/:id', async (req, res) => {
     try {
       const g = (await listGachas()).find((x) => x.id === req.params.id);
-      const m = g?.banner?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
-      if (!m) return res.status(404).end();
-      res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable').send(Buffer.from(m[2], 'base64'));
+      const b = await readBanner(g);
+      if (!b) return res.status(404).end();
+      res.set('Content-Type', b.mime).set('Cache-Control', 'public, max-age=31536000, immutable').send(b.buf);
     } catch { res.status(500).end(); }
   });
   app.get('/sounds', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json(await listSounds()); } catch { res.status(500).end(); } });

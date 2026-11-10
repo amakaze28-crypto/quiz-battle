@@ -5,14 +5,20 @@ import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
 import { saveSettings, settings } from './settings.js';
 import * as missions from './missions.js';
-import { listGachas, normalizeGacha, NORMAL_ID } from './gachaDefs.js';
+import { listGachas, normalizeGacha, NORMAL_ID, okBannerData, putBanner, clearBannerChunks } from './gachaDefs.js';
 import * as sounds from './sounds.js';
 import * as badges from './badges.js';
 import { rotateSeason } from './seasons.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const SEED_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 
 export function mountAdmin(app, { io, matchmaker }) {
   const r = express.Router();
   r.use('/sounds', express.json({ limit: '18mb' })); // 音源は大きいので先に専用の上限で読む
+  r.use('/gachas', express.json({ limit: '8mb' })); // 高画質バナー用
   r.use(express.json({ limit: '3mb' }));
 
   r.use(async (req, res, next) => {
@@ -225,11 +231,23 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.put('/settings', wrap(async (req, res) => res.json(await saveSettings(req.body || {}))));
 
   // ---- アイテム（アイコン・フレーム・バナー）。画像はブラウザ側で縮小したdata URLを想定 ----
-  const TYPES = ['icon', 'frame', 'banner', 'character'];
+  const TYPES = ['icon', 'frame', 'card', 'banner', 'character'];
   const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
   const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 700_000;
   r.get('/items', wrap(async (_req, res) => {
     res.json({ items: (await store.colList('items')).map(({ image, ...i }) => i).sort((a, b) => b.createdAt - a.createdAt) });
+  }));
+  // 同梱の画像（アイコンフレーム120点・カードフレーム90点）を一括登録。同じIDは上書きせずスキップ（何度押しても安全）
+  r.post('/seed-items', wrap(async (_req, res) => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'manifest.json'), 'utf8'));
+    let added = 0; let skipped = 0;
+    for (const m of manifest) {
+      if (await store.colGet('items', m.id)) { skipped++; continue; }
+      const b64 = fs.readFileSync(path.join(SEED_DIR, m.file)).toString('base64');
+      await store.colSet('items', m.id, { name: m.name, type: m.type, rarity: m.rarity, price: 0, image: `data:image/webp;base64,${b64}`, onShop: false, inGacha: true, createdAt: Date.now() });
+      added++;
+    }
+    res.json({ added, skipped, total: manifest.length });
   }));
   r.post('/items', wrap(async (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 30);
@@ -277,26 +295,30 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.get('/gachas', wrap(async (_req, res) => {
     res.json({ gachas: (await listGachas()).map((g) => ({ ...g, banner: g.banner ? `/gacha-banner/${g.id}?v=${g.updatedAt}` : '' })) });
   }));
-  const okBanner = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 900_000;
+  const okBanner = okBannerData;
   r.post('/gachas', wrap(async (req, res) => {
     const g = normalizeGacha('x', { ...req.body, kind: 'limited' });
     if (req.body.banner && !okBanner(req.body.banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます' });
     const { id, ...data } = g;
-    res.json({ id: await store.colAdd('gachas', { ...data, banner: req.body.banner || '', kind: 'limited', createdAt: Date.now(), updatedAt: Date.now() }) });
+    const nid = await store.colAdd('gachas', { ...data, banner: '', kind: 'limited', createdAt: Date.now(), updatedAt: Date.now() });
+    if (req.body.banner) await store.colSet('gachas', nid, { banner: await putBanner(nid, req.body.banner, '') });
+    res.json({ id: nid });
   }));
   r.put('/gachas/:id', wrap(async (req, res) => {
     const id = req.params.id;
     const cur = (await listGachas()).find((x) => x.id === id);
     if (!cur) return res.status(404).json({ error: 'ガチャが見つかりません' });
     const b = req.body;
-    const banner = b.banner === undefined ? cur.banner : b.banner; // '' で削除
-    if (banner && banner !== cur.banner && !okBanner(banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます' });
+    let banner = b.banner === undefined ? cur.banner : b.banner; // '' で削除
+    if (banner && banner !== cur.banner && !okBanner(banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます（約4MBまで）' });
+    if (b.banner !== undefined && banner !== cur.banner) banner = await putBanner(id, banner, cur.banner);
     const { id: _i, ...next } = normalizeGacha(id, { ...cur, ...b, banner, kind: id === NORMAL_ID ? 'normal' : 'limited' });
     await store.colSet('gachas', id, { ...next, createdAt: cur.createdAt || Date.now(), updatedAt: Date.now() });
     res.json({ ok: true });
   }));
   r.delete('/gachas/:id', wrap(async (req, res) => {
     if (req.params.id === NORMAL_ID) return res.status(400).json({ error: '通常ガチャは削除できません' });
+    await clearBannerChunks(req.params.id, (await listGachas()).find((x) => x.id === req.params.id)?.banner);
     await store.colDel('gachas', req.params.id);
     res.json({ ok: true });
   }));

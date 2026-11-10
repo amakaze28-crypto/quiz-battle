@@ -45,3 +45,35 @@ export async function poolFor(g) {
     .filter((s) => s.items.length > 0);
   return [...its, ...ss];
 }
+
+// ---- バナー画像（高画質）。Firestore の1MB制限を避けるため、大きい画像は分割して保存する ----
+const BANNER_CHUNK = 600_000;
+const BANNER_RE = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/s;
+export const BANNER_MAX = 6_000_000; // data URL の最大文字数（約4.5MB）
+export const okBannerData = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length <= BANNER_MAX;
+
+export async function clearBannerChunks(id, marker) {
+  const m = /^chunks:[^:]+:(\d+)$/.exec(marker || '');
+  for (let i = 0; i < (m ? Number(m[1]) : 0); i++) await store.colDel('bannerchunks', `${id}__${i}`);
+}
+// 戻り値を gacha.banner に保存する（小さければdata URLそのまま、大きければ分割して印を返す）
+export async function putBanner(id, dataUrl, oldMarker) {
+  await clearBannerChunks(id, oldMarker);
+  if (!dataUrl) return '';
+  if (dataUrl.length < 800_000) return dataUrl;
+  const m = BANNER_RE.exec(dataUrl);
+  const n = Math.ceil(m[2].length / BANNER_CHUNK);
+  for (let i = 0; i < n; i++) await store.colSet('bannerchunks', `${id}__${i}`, { d: m[2].slice(i * BANNER_CHUNK, (i + 1) * BANNER_CHUNK) });
+  return `chunks:${m[1]}:${n}`;
+}
+export async function readBanner(g) {
+  if (!g?.banner) return null;
+  const c = /^chunks:([^:]+):(\d+)$/.exec(g.banner);
+  if (c) {
+    const parts = [];
+    for (let i = 0; i < Number(c[2]); i++) parts.push((await store.colGet('bannerchunks', `${g.id}__${i}`))?.d || '');
+    return { mime: c[1], buf: Buffer.from(parts.join(''), 'base64') };
+  }
+  const m = BANNER_RE.exec(g.banner);
+  return m ? { mime: m[1], buf: Buffer.from(m[2], 'base64') } : null;
+}
