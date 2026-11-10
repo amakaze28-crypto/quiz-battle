@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, provider } from './firebase';
-import { callApi } from './api';
+import { callApi, SERVER_URL } from './api';
 import { useGame } from './useGame';
 import { useSummary } from './useSummary';
 import Layout from './Layout';
@@ -35,8 +35,10 @@ export function Center({ children, wide }) {
   );
 }
 
-function Authed({ user }) {
+function Authed({ user, onMaintenance }) {
   const g = useGame(user);
+  // メンテナンス中（管理者以外）はタイトル画面へ戻す
+  useEffect(() => { if (g.conn === 'maintenance') onMaintenance(g.maintMsg); }, [g.conn]); // eslint-disable-line react-hooks/exhaustive-deps
   const [view, setView] = useState(null);
   const { summary, refresh } = useSummary(user, view);
 
@@ -146,6 +148,16 @@ export default function App() {
     } finally { setBusy(false); }
   };
   const [terms, setTerms] = useState(null); // null | 'consent' | 'view'
+  // メンテナンス中の表示（タイトル画面で30秒ごとに確認）
+  const [maint, setMaint] = useState({ on: false, message: '' });
+  useEffect(() => {
+    if (started && user) return undefined;
+    let alive = true;
+    const check = () => fetch(`${SERVER_URL}/maintenance`, { cache: 'no-store' }).then((r) => r.json()).then((m) => { if (alive) setMaint({ on: !!m.on, message: m.message || '' }); }).catch(() => {});
+    check();
+    const t = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, [started, user]);
   // ログインの前に利用規約への同意を確認する（同意済みならそのまま進む）
   const start = async () => {
     if (busy) return;
@@ -162,11 +174,11 @@ export default function App() {
   if (!started || !user) {
     return (
       <>
-        <Title user={user} onStart={start} onLogin={doLogin} onLogout={() => signOut(auth)} busy={busy} error={error} />
+        <Title maintenance={maint} user={user} onStart={start} onLogin={doLogin} onLogout={() => signOut(auth)} busy={busy} error={error} />
         <button onClick={() => setTerms('view')} className="fixed left-1/2 -translate-x-1/2 bottom-2 z-20 text-xs text-white/85 underline drop-shadow-[0_1px_3px_rgba(0,0,0,.9)]">利用規約・お問い合わせ</button>
         {terms && <Terms mode={terms} onClose={() => setTerms(null)} onAgree={async () => { setTerms(null); if (user || (await login())) setStarted(true); }} />}
       </>
     );
   }
-  return <Authed user={user} />;
+  return <Authed user={user} onMaintenance={(msg) => { setMaint({ on: true, message: msg }); setStarted(false); }} />;
 }

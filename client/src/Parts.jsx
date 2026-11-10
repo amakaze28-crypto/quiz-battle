@@ -1,15 +1,21 @@
 import { iconSrc, itemSrc, RARITY } from './icons';
+import { useFrameFits, DEFAULT_FIT } from './cardLayout';
 
 // アイコン＋フレーム（フレームは中央が透明な正方形画像をアイコンに重ねる）
-export const Avatar = ({ iconId, frameId, size = 40, className = '' }) => (
+export function Avatar({ iconId, frameId, size = 40, className = '', fit, frameSrc }) {
+  const fits = useFrameFits();
+  const F = { ...DEFAULT_FIT, ...(fits[frameId] || {}), ...(fit || {}) };
+  const pct = (v) => `${(v * 100).toFixed(3)}%`;
+  return (
   <div className="relative shrink-0" style={size ? { width: size, height: size } : { width: '100%', height: '100%' }}>
     <img src={iconSrc(iconId)} alt="" draggable={false} className={`rounded-full object-cover bg-slate-600 w-full h-full ${className}`} />
-    {frameId && frameId !== 'none' && (
-      <img src={itemSrc(frameId)} alt="" draggable={false} className="absolute pointer-events-none"
-        style={{ left: '-10%', top: '-10%', width: '120%', height: '120%', maxWidth: 'none' }} />
+    {((frameId && frameId !== 'none') || frameSrc) && (
+      <img src={frameSrc || itemSrc(frameId)} alt="" draggable={false} className="absolute pointer-events-none"
+        style={{ left: pct(-(F.s - 1) / 2 + F.dx), top: pct(-(F.s - 1) / 2 + F.dy), width: pct(F.s), height: pct(F.s), maxWidth: 'none' }} />
     )}
   </div>
-);
+  );
+}
 
 export const Banner = ({ bannerId, className = '', style }) => (
   bannerId && bannerId !== 'none'

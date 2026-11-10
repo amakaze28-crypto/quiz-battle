@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { adminApi } from './api';
+import { adminApi, SERVER_URL } from './api';
 
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
 const shiftDay = (d, n) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -58,6 +58,37 @@ export function LoginStats({ user }) {
       </svg>
       <p className="text-xs text-slate-400 mt-1"><span className="inline-block w-3 h-3 rounded-sm bg-[#0ea5e9] align-middle mr-1" />その時間にログインした人数　<span className="inline-block w-3 h-0.5 bg-amber-400 align-middle mr-1" />同時接続の最高人数（時刻は日本時間）{isToday ? '・今の時間は明るい青' : ''}</p>
       {err && <p className="text-red-300 text-sm">{err}</p>}
+    </div>
+  );
+}
+
+// メンテナンスのオン／オフ。オンの間は管理者以外ログインできず、タイトル画面に「メンテナンス中」と表示される
+export function MaintenanceCard({ user }) {
+  const [m, setM] = useState(null);
+  const [text, setText] = useState('');
+  const [msg, setMsg] = useState(null);
+  useEffect(() => { fetch(`${SERVER_URL}/maintenance`, { cache: 'no-store' }).then((r) => r.json()).then((d) => { setM(d); setText(d.message || ''); }).catch(() => {}); }, []);
+  const set = async (on) => {
+    if (on && !window.confirm('メンテナンスを開始します。管理者以外はログインできなくなり、接続中の人もタイトル画面に戻されます（対戦中の人も切断されます）。よろしいですか？')) return;
+    try { const d = await adminApi(user, '/maintenance', { method: 'POST', body: { on, message: text } }); setM(d); setMsg({ ok: true, text: on ? 'メンテナンスを開始しました' : 'メンテナンスを終了しました' }); }
+    catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
+  if (!m) return null;
+  return (
+    <div className={`rounded-xl p-4 lg:col-span-2 ${m.on ? 'bg-amber-950/60 border border-amber-500/60' : 'bg-[#171a20]'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h2 className="font-bold">メンテナンス</h2>
+        <span className={`text-sm font-bold rounded px-2 py-0.5 ${m.on ? 'bg-amber-500 text-black' : 'bg-slate-700 text-slate-200'}`}>{m.on ? '🔧 メンテナンス中' : '通常運営中'}</span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">オンにすると、タイトル画面に「メンテナンス中」と表示され、管理者アカウント以外はログインできません（タイトル画面までしか進めません）。</p>
+      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder="タイトル画面に出すメッセージ（空なら標準の文）"
+        className="w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2 mb-2" />
+      <div className="flex gap-2">
+        {m.on
+          ? <><button onClick={() => set(true)} className={`${btn} bg-slate-700`}>メッセージを更新</button><button onClick={() => set(false)} className={`${btn} bg-emerald-600 font-bold`}>メンテナンスを終了する</button></>
+          : <button onClick={() => set(true)} className={`${btn} bg-amber-600 font-bold`}>メンテナンスを開始する</button>}
+      </div>
+      {msg && <p className={`mt-2 text-sm ${msg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{msg.text}</p>}
     </div>
   );
 }

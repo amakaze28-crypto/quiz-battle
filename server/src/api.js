@@ -9,7 +9,8 @@ import { rankInfo, ratingValue, TIERS, MASTER_START } from './rank.js';
 import { cfg } from './config.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
-import { cardLayouts } from './cardlayouts.js';
+import { cardLayouts, frameFits } from './cardlayouts.js';
+import { maintenance } from './settings.js';
 import { listGachas, poolFor, isActive, costOf, NORMAL_ID, readBanner } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
 import * as badges from './badges.js';
@@ -25,6 +26,7 @@ export function mountApi(app) {
       const token = (req.headers.authorization || '').replace(/^Bearer /, '');
       const a = await store.verifyToken(token);
       const me = await store.getOrCreateUser(a.uid, a.name, a.photoURL, a.email);
+      if (maintenance().on && !a.isAdmin) return res.status(503).json({ error: 'メンテナンス中です', maintenance: true });
       if (me.banned) return res.status(403).json({ error: 'アカウントが停止されています' });
       req.auth = a;
       req.me = me;
@@ -481,7 +483,8 @@ export function mountApi(app) {
       res.set('Content-Type', b.mime).set('Cache-Control', 'public, max-age=31536000, immutable').send(b.buf);
     } catch { res.status(500).end(); }
   });
-  app.get('/card-layouts', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json({ layouts: await cardLayouts() }); } catch { res.status(500).end(); } });
+  app.get('/maintenance', (_req, res) => res.set('Cache-Control', 'no-store').json(maintenance()));
+  app.get('/card-layouts', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json({ layouts: await cardLayouts(), fits: await frameFits() }); } catch { res.status(500).end(); } });
   app.get('/sounds', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json(await listSounds()); } catch { res.status(500).end(); } });
   app.get('/sound/:slot', async (req, res) => {
     try {

@@ -11,7 +11,7 @@ export const TIER_LABEL = { rookie: 'ルーキー', bronze: 'ブロンズ', silv
 // aspect=幅/高さ, cx,cy=アイコン円の中心, d=円の直径(幅比), p1,p2=名前/ランク板の中心(高さ比), pl=板の左端, panel=左パネル右端, ph=板の高さ(高さ比), by=バッジ中心y
 // どのカードも同じ縦横比(CARD_ASPECT)で表示する（画像は軽く伸縮して合わせる）
 export const CARD_ASPECT = 0.56;
-const LAYOUTS = {
+export const LAYOUTS = {
   A: { cx: 0.214, cy: 0.26, d: 0.324, p1: 0.407, p2: 0.497, pl: 0.04, panel: 0.41, ph: 0.065, by: 0.72 },
   B: { cx: 0.215, cy: 0.256, d: 0.33, p1: 0.40, p2: 0.494, pl: 0.04, panel: 0.415, ph: 0.065, by: 0.665 },
   C: { cx: 0.246, cy: 0.257, d: 0.371, p1: 0.42, p2: 0.497, pl: 0.066, panel: 0.44, ph: 0.068, by: 0.80 },
@@ -51,7 +51,7 @@ function FramedCard({ c, className, onClick, L, name, earned, badge }) {
   return (
     <div className={`relative w-full overflow-hidden rounded-xl shadow-lg ${className}`} onClick={onClick}
       style={{ aspectRatio: String(CARD_ASPECT), containerType: 'inline-size', cursor: onClick ? 'pointer' : undefined }}>
-      <img src={itemSrc(c.cardId)} alt="" draggable={false} className="absolute inset-0 w-full h-full" style={{ objectFit: 'fill' }} />
+      <img src={c.cardSrc || itemSrc(c.cardId)} alt="" draggable={false} className="absolute inset-0 w-full h-full" style={{ objectFit: 'fill' }} />
       <div className="absolute" style={{ left: pc(L.panel), right: '1%', top: '2%', bottom: '1%' }}>
         <img src={charSrc(c.charId)} alt="" draggable={false} className="w-full h-full" style={{ objectFit: 'contain', objectPosition: 'center bottom' }} />
       </div>
@@ -74,7 +74,7 @@ export default function PlayerCard({ c, className = '', onClick, layout }) {
   const earned = /^[bs]:/.test(c.badgeId || '') ? c.badgeInfo : null;
   const badge = c.badgeId === 'none' ? null : (c.badgeId && c.badgeId !== 'auto' ? { key: c.badgeId, label: TIER_LABEL[c.badgeId] } : c.rank);
   const name = c.displayName || '';
-  if (c.cardId && c.cardId !== 'none') return <FramedCard c={c} className={className} onClick={onClick} L={layout || layoutOf(c.cardId, ov)} name={name} earned={earned} badge={badge} />;
+  if ((c.cardId && c.cardId !== 'none') || c.cardSrc) return <FramedCard c={c} className={className} onClick={onClick} L={layout || layoutOf(c.cardId, ov)} name={name} earned={earned} badge={badge} />;
   const nameSize = name.length <= 6 ? 34 : name.length <= 9 ? 28 : 22;
   return (
     <div className={`relative w-full overflow-hidden rounded-xl shadow-lg ${className}`} onClick={onClick}

@@ -17,6 +17,7 @@ export function useGame(user) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [banReason, setBanReason] = useState('');
+  const [maintMsg, setMaintMsg] = useState('');
 
   useEffect(() => { qRef.current = q; }, [q]);
 
@@ -28,9 +29,11 @@ export function useGame(user) {
     s.on('connect', () => { setConn('online'); setError(null); });
     s.on('disconnect', () => setConn('offline'));
     s.on('connect_error', (e) => {
+      if (e.message === 'MAINTENANCE') { setMaintMsg(e.data?.message || ''); setConn('maintenance'); return; }
       if (e.message === 'BANNED') { setBanReason(e.data?.reason || ''); setConn('banned'); return; }
       setConn('error'); setError(e.message);
     });
+    s.on('maintenance', ({ message }) => { setMaintMsg(message || ''); setConn('maintenance'); });
     s.on('banned', ({ reason }) => { setBanReason(reason || ''); setConn('banned'); });
     s.on('sping', (ack) => ack());
     s.on('profile', setProfile);
@@ -66,5 +69,5 @@ export function useGame(user) {
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  return { conn, banReason, setProfile, profile, phase, queue, match, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
+  return { conn, maintMsg, banReason, setProfile, profile, phase, queue, match, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
 }

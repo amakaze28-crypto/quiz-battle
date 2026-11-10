@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminApi, SERVER_URL } from './api';
 import { Avatar, Coin, Sand, RarityTag } from './Parts';
 import { RARITY, RARITIES, TYPE_LABEL } from './icons';
-import { ItemViewModal } from './AdminCards';
-import { LoginStats } from './AdminStats';
+import { ItemViewModal, DraftCardEditor, DraftFrameEditor } from './AdminCards';
+import { LAYOUTS } from './PlayerCard';
+import { DEFAULT_FIT, loadCardLayouts } from './cardLayout';
+import { LoginStats, MaintenanceCard } from './AdminStats';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
@@ -149,6 +151,15 @@ export async function fileToImage(file, type) {
     for (const q of [0.95, 0.9, 0.82, 0.74, 0.66, 0.55]) { out = c.toDataURL('image/webp', q); if (out.length < 4_300_000) break; }
     return out;
   }
+  if (type === 'card') { // バナー（カード台紙）: 縦横比を保って最大1024x1536。サイズ上限(約65万文字)に収まるまで画質を下げる
+    const k = Math.min(1024 / bmp.width, 1536 / bmp.height, 1);
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    let out = '';
+    for (const q of [0.9, 0.82, 0.74, 0.66, 0.56, 0.46]) { out = c.toDataURL('image/webp', q); if (out.length < 650_000) break; }
+    return out;
+  }
   if (type === 'banner') {
     c.width = 800; c.height = 200;
     const r = Math.min(bmp.width / 4, bmp.height); const sw = r * 4;
@@ -177,27 +188,23 @@ export function ItemsAdmin({ user }) {
   const [filter, setFilter] = useState('all');
   const [msg, setMsg] = useState(null);
   const [view, setView] = useState(null);
+  const [viewEdit, setViewEdit] = useState(false);
+  const [layout, setLayout] = useState({ ...LAYOUTS.A }); // 追加するバナーの配置
+  const [fit, setFit] = useState({ ...DEFAULT_FIT });      // 追加するアイコンフレームの位置・大きさ
 
   const pick = async (e) => { const file = e.target.files?.[0]; if (file) setF({ ...f, image: await fileToImage(file, f.type) }); };
   const add = async () => {
-    try { await adminApi(user, '/items', { method: 'POST', body: f }); setMsg({ ok: true, text: '追加しました' }); setF({ ...blank, type: f.type, rarity: f.rarity }); load(); }
+    try {
+      await adminApi(user, '/items', { method: 'POST', body: { ...f, layout: f.type === 'card' ? layout : undefined, fit: f.type === 'frame' ? fit : undefined } });
+      setMsg({ ok: true, text: '追加しました' }); setF({ ...blank, type: f.type, rarity: f.rarity }); setLayout({ ...LAYOUTS.A }); setFit({ ...DEFAULT_FIT }); loadCardLayouts(true); load();
+    }
     catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { alert(e.message); } };
-  const seed = async () => {
-    if (!confirm('同梱のアイコンフレーム120点・カードフレーム90点を、ガチャ（恒常）に登録します。よろしいですか？（登録済みのものは画像だけ更新）')) return;
-    setMsg({ ok: true, text: '登録中…' });
-    try { const d = await adminApi(user, '/seed-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: `新規 ${d.added}点 / 既存の画像を更新 ${d.skipped}点` }); load(); }
-    catch (e) { setMsg({ ok: false, text: e.message }); }
-  };
   const shown = data?.filter((i) => filter === 'all' || i.type === filter);
 
   return (
     <div>
-      <div className={`${card} mb-3 flex flex-wrap items-center gap-3`}>
-        <button onClick={seed} className={`${btn} bg-emerald-600 font-bold`}>同梱フレームを一括登録（アイコンフレーム120＋カード90）</button>
-        <span className="text-xs text-slate-400">コモン〜エピックの恒常ガチャに入ります。</span>
-      </div>
       <h2 className="font-bold mb-2">アイテムを追加</h2>
       <div className={`${card} space-y-3 mb-5 max-w-xl`}>
         <div className="flex gap-2">
@@ -209,9 +216,11 @@ export function ItemsAdmin({ user }) {
           {f.image ? <img src={f.image} alt="" className={f.type === 'banner' ? 'w-40 h-10 rounded object-cover' : f.type === 'character' ? 'h-24 object-contain' : 'w-16 h-16 object-cover ' + (f.type === 'icon' ? 'rounded-full' : '')} /> : <div className="w-16 h-16 rounded bg-slate-700" />}
           <input type="file" accept="image/*" onChange={pick} className="text-sm" />
         </div>
+        {f.image && f.type === 'card' && <DraftCardEditor user={user} image={f.image} L={layout} setL={setLayout} />}
+        {f.image && f.type === 'frame' && <DraftFrameEditor user={user} image={f.image} F={fit} setF={setFit} />}
         <p className="text-xs text-slate-400">
           {f.type === 'icon' && '中央を正方形に切り出して256pxに縮小します。'}
-          {f.type === 'card' && 'バナー（プレイヤーカード全体の台紙・縦長の画像）です。追加後、一覧でタップすると見た目を確認して、アイコン等の位置を調整できます。'}
+          {f.type === 'card' && 'バナー（プレイヤーカード全体の台紙・縦長の画像）です。画像を選ぶと、この画面でアイコン等の位置を調整できます（追加後も、一覧の「位置調整」から変更できます）。'}
           {f.type === 'frame' && 'アイコンに重ねる枠です。中央が透明な正方形のPNG／WebPを選んでください（透過は保たれます）。'}
           {f.type === 'character' && '全身の立ち絵（背景透過のPNG/WebP推奨・縦長）。プレイヤーカードに表示されます。'}
           {f.type === 'banner' && '横長(4:1)の画像がおすすめです。800×200に整えます。'}
@@ -242,7 +251,7 @@ export function ItemsAdmin({ user }) {
       <ul className="space-y-2">
         {shown?.map((i) => (
           <li key={i.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
-            <button onClick={() => setView(i)} className="flex items-center gap-3 min-w-0 flex-1 text-left" title="タップで見た目を確認">
+            <button onClick={() => { setViewEdit(false); setView(i); }} className="flex items-center gap-3 min-w-0 flex-1 text-left" title="タップで見た目を確認">
   {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : (i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
             <div className="min-w-0 flex-1">
               <div className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></div>
@@ -254,13 +263,14 @@ export function ItemsAdmin({ user }) {
             </select>
             <button onClick={() => { const p = window.prompt('新しい価格（魔法の砂）', i.price); if (p !== null) patch(i, { price: Number(p) }); }} className={`${btn} bg-slate-700`}>価格</button>
             <button onClick={() => { const n = window.prompt('新しい名前', i.name); if (n) patch(i, { name: n }); }} className={`${btn} bg-slate-700`}>名前</button>
+            {(i.type === 'card' || i.type === 'frame') && <button onClick={() => { setViewEdit(true); setView(i); }} className={`${btn} bg-sky-700 font-bold`}>位置調整</button>}
             <button onClick={() => patch(i, { onShop: !i.onShop })} className={`${btn} ${i.onShop ? 'bg-sky-600' : 'bg-slate-600'}`}>{i.onShop ? '販売中' : '非売'}</button>
             <button onClick={() => patch(i, { inGacha: !i.inGacha })} className={`${btn} ${i.inGacha ? 'bg-purple-600' : 'bg-slate-600'}`}>{i.inGacha ? 'ガチャ内' : 'ガチャ外'}</button>
           </li>
         ))}
         {shown?.length === 0 && <li className="text-slate-400 text-center py-6">アイテムがありません</li>}
       </ul>
-      {view && <ItemViewModal user={user} item={view} items={data} onClose={() => setView(null)} />}
+      {view && <ItemViewModal key={`${view.id}-${viewEdit}`} user={user} item={view} items={data} startEdit={viewEdit} onClose={() => setView(null)} />}
     </div>
   );
 }
@@ -290,6 +300,7 @@ export function SettingsAdmin({ user }) {
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <MaintenanceCard user={user} />
       <LoginStats user={user} />
       <div className={card}>
         <h2 className="font-bold mb-1">ミッション報酬（コイン）</h2>

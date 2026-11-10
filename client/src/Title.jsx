@@ -3,7 +3,7 @@ import { Stage, Box, Hot, fs } from './Stage';
 import AudioPanel from './AudioPanel';
 
 // タイトル画面。どこをタップしても開始（未ログインならGoogleログイン）
-export default function Title({ user, onStart, onLogin, onLogout, busy, error }) {
+export default function Title({ maintenance, user, onStart, onLogin, onLogout, busy, error }) {
   const [modal, setModal] = useState(null); // 'transfer' | 'settings'
 
   return (
@@ -13,6 +13,14 @@ export default function Title({ user, onStart, onLogin, onLogout, busy, error })
         <Hot x={40} y={1432} w={206} h={70} label="引き継ぎ" onClick={() => setModal('transfer')} />
         <Hot x={805} y={1432} w={190} h={70} label="設定" onClick={() => setModal('settings')} />
         <Hot x={918} y={22} w={76} h={74} label="メニュー" onClick={() => setModal('settings')} />
+        {maintenance?.on && (
+          <Box x={80} y={930} w={864} h={250} className="flex flex-col items-center justify-center text-center pointer-events-none rounded-2xl"
+            style={{ background: 'rgba(8,16,38,.82)', border: '3px solid #e2b13c', color: '#fff', textShadow: '0 2px 4px #000' }}>
+            <span style={{ fontSize: fs(54), fontWeight: 800, color: '#ffd166' }}>🔧 メンテナンス中</span>
+            <span style={{ fontSize: fs(28), marginTop: '0.6cqw' }}>{maintenance.message || 'ただいまメンテナンス中です。しばらくお待ちください。'}</span>
+            <span style={{ fontSize: fs(22), marginTop: '0.4cqw', color: '#cbd5e1' }}>管理者以外はログインできません</span>
+          </Box>
+        )}
         {(busy || error) && (
           <Box x={100} y={1190} w={824} h={70} className="grid place-items-center text-center pointer-events-none" style={{ fontSize: fs(26), fontWeight: 700, color: error ? '#fca5a5' : '#fff', textShadow: '0 2px 6px #000' }}>
             {busy ? 'ログイン中…' : error}

@@ -8,7 +8,7 @@ import * as store from './store.js';
 import { reloadQuestions, seedIfEmpty, pickQuestions, publishedCount } from './questions.js';
 import { mountAdmin } from './admin.js';
 import { mountApi } from './api.js';
-import { loadSettings } from './settings.js';
+import { loadSettings, maintenance } from './settings.js';
 import { profilePayload } from './profile.js';
 import * as presence from './presence.js';
 import * as loginstats from './loginstats.js';
@@ -61,6 +61,11 @@ io.use(async (socket, next) => {
     user = await store.verifyToken(socket.handshake.auth?.token);
   } catch {
     return next(new Error('認証に失敗しました'));
+  }
+  if (maintenance().on && !user.isAdmin) {
+    const err = new Error('MAINTENANCE');
+    err.data = { message: maintenance().message };
+    return next(err);
   }
   const profile = await store.getOrCreateUser(user.uid, user.name, user.photoURL, user.email);
   if (profile.banned) {

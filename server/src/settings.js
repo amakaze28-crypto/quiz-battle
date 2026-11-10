@@ -9,6 +9,7 @@ const DEFAULTS = {
   renameCost: 100,                                      // 2回目以降の改名コスト(コイン)
   secondaryChance: 0.05,                                // Secondaryシステム(得点2倍)の発動確率
   showQueueSize: true,                                  // マッチング中に待機人数を表示するか
+  maintenance: { on: false, message: '' },              // メンテナンス中は管理者以外ログイン不可
   season: { enabled: false, lengthDays: 30, number: 1, startAt: 0, resetPt: 0 }, // シーズン（切替でランクリセット）
   bots: { enabled: true, waitMin: 5, waitMax: 12 },     // botマッチ（ダイヤ帯まで）。待ち時間が waitMin〜waitMax 秒を超えるとbotが加わる
   gacha: {
@@ -40,6 +41,8 @@ function mergeGacha(src = {}) {
   };
 }
 
+export const mergeMaintenance = (src = {}) => ({ on: !!src.on, message: String(src.message || '').slice(0, 200) });
+
 function mergeSeason(src = {}) {
   const d = DEFAULTS.season;
   return {
@@ -68,6 +71,7 @@ export async function loadSettings() {
     season: mergeSeason(d.season),
     bots: mergeBots(d.bots),
     gacha: mergeGacha(d.gacha),
+    maintenance: mergeMaintenance(d.maintenance),
   };
   return current;
 }
@@ -86,8 +90,16 @@ export async function saveSettings(p) {
     season: mergeSeason({ ...current.season, ...(p.season || {}) }),
     bots: mergeBots({ ...current.bots, ...(p.bots || {}) }),
     gacha: mergeGacha({ ...current.gacha, ...(p.gacha || {}) }),
+    maintenance: current.maintenance, // メンテナンスは専用の操作でだけ変える（設定の保存で上書きしない）
   };
   await store.colSet('settings', 'main', next);
   current = next;
   return current;
+}
+
+export const maintenance = () => current.maintenance || { on: false, message: '' };
+export async function setMaintenance(on, message) {
+  current = { ...current, maintenance: mergeMaintenance({ on, message }) };
+  await store.colSet('settings', 'main', current);
+  return current.maintenance;
 }

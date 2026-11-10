@@ -3,19 +3,15 @@ import * as store from './store.js';
 import { normalizeQuestion, reloadQuestions, fileName, catOf } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
-import { saveSettings, settings } from './settings.js';
+import { saveSettings, settings, setMaintenance } from './settings.js';
 import * as missions from './missions.js';
 import { listGachas, normalizeGacha, NORMAL_ID, okBannerData, putBanner, clearBannerChunks } from './gachaDefs.js';
 import * as sounds from './sounds.js';
 import * as badges from './badges.js';
 import { rotateSeason } from './seasons.js';
 import * as loginstats from './loginstats.js';
-import { cardLayouts } from './cardlayouts.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { cardLayouts, frameFits, cleanLayout, cleanFit } from './cardlayouts.js';
 
-const SEED_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 
 export function mountAdmin(app, { io, matchmaker }) {
   const r = express.Router();
@@ -181,23 +177,40 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({ ok: true });
   }));
 
+  // ---- メンテナンス（オンにすると管理者以外はログインできず、接続中の人もタイトルへ戻る） ----
+  r.post('/maintenance', wrap(async (req, res) => {
+    const m = await setMaintenance(!!req.body.on, req.body.message);
+    if (m.on) {
+      for (const [, s] of io.sockets.sockets) {
+        if (s.data?.isAdmin) continue;
+        s.emit('maintenance', { message: m.message });
+        s.disconnect(true);
+      }
+    }
+    res.json(m);
+  }));
+
   // ---- ログイン数（現在のオンライン数と、時間別のグラフ） ----
   r.get('/loginstats', wrap(async (req, res) => res.json(await loginstats.dayView(String(req.query.date || '')))));
 
   // ---- バナー(カードフレーム)の配置。id ごとに上書き保存 ----
-  const LAYOUT_KEYS = ['cx', 'cy', 'd', 'p1', 'p2', 'pl', 'panel', 'ph', 'by'];
-  r.get('/card-layouts', wrap(async (_req, res) => res.json({ layouts: await cardLayouts() })));
+  r.get('/card-layouts', wrap(async (_req, res) => res.json({ layouts: await cardLayouts(), fits: await frameFits() })));
   r.put('/card-layouts', wrap(async (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.map(String).slice(0, 200) : [];
-    const L = {};
-    for (const k of LAYOUT_KEYS) {
-      const v = Number(req.body.layout?.[k]);
-      if (!Number.isFinite(v) || v < 0 || v > 1.2) return res.status(400).json({ error: '値が不正です' });
-      L[k] = Math.round(v * 10000) / 10000;
-    }
+    const L = cleanLayout(req.body.layout);
+    if (!L) return res.status(400).json({ error: '値が不正です' });
     for (const id of ids) await store.colSet('cardlayouts', id, L);
     res.json({ ok: true, count: ids.length });
   }));
+  // アイコンフレームの位置・大きさ
+  r.put('/frame-fits', wrap(async (req, res) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(String).slice(0, 200) : [];
+    const F = cleanFit(req.body.fit);
+    if (!F) return res.status(400).json({ error: '値が不正です' });
+    for (const id of ids) await store.colSet('framefits', id, F);
+    res.json({ ok: true, count: ids.length });
+  }));
+  r.delete('/frame-fits/:id', wrap(async (req, res) => { await store.colDel('framefits', req.params.id); res.json({ ok: true }); }));
   r.delete('/card-layouts/:id', wrap(async (req, res) => { await store.colDel('cardlayouts', req.params.id); res.json({ ok: true }); }));
 
   // ---- コイン・砂の付与（マイナスで減算） ----
@@ -258,18 +271,6 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.get('/items', wrap(async (_req, res) => {
     res.json({ items: (await store.colList('items')).map(({ image, ...i }) => i).sort((a, b) => b.createdAt - a.createdAt) });
   }));
-  // 同梱の画像（アイコンフレーム120点・カードフレーム90点）を一括登録。同じIDは上書きせずスキップ（何度押しても安全）
-  r.post('/seed-items', wrap(async (_req, res) => {
-    const manifest = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'manifest.json'), 'utf8'));
-    let added = 0; let skipped = 0;
-    for (const m of manifest) {
-      const b64 = fs.readFileSync(path.join(SEED_DIR, m.file)).toString('base64');
-      if (await store.colGet('items', m.id)) { await store.colSet('items', m.id, { image: `data:image/webp;base64,${b64}` }); skipped++; continue; } // 既存は画像だけ更新（名前・レア度などの編集は保持）
-      await store.colSet('items', m.id, { name: m.name, type: m.type, rarity: m.rarity, price: 0, image: `data:image/webp;base64,${b64}`, onShop: false, inGacha: true, createdAt: Date.now() });
-      added++;
-    }
-    res.json({ added, skipped, total: manifest.length });
-  }));
   r.post('/items', wrap(async (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 30);
     const price = Math.max(0, Math.round(Number(req.body.price) || 0));
@@ -277,7 +278,11 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (!name) return res.status(400).json({ error: '名前を入力してください' });
     if (!TYPES.includes(type) || !RAR.includes(rarity)) return res.status(400).json({ error: '種類とレア度を選んでください' });
     if (!okImage(req.body.image)) return res.status(400).json({ error: '画像(PNG/JPEG/WebP・約500KB未満)を指定してください' });
-    res.json({ id: await store.colAdd('items', { name, type, rarity, price, image: req.body.image, onShop: !!req.body.onShop, inGacha: !!req.body.inGacha, createdAt: Date.now() }) });
+    const id = await store.colAdd('items', { name, type, rarity, price, image: req.body.image, onShop: !!req.body.onShop, inGacha: !!req.body.inGacha, createdAt: Date.now() });
+    // 追加時に調整した位置（バナー=配置、アイコンフレーム=位置と大きさ）も一緒に保存
+    if (type === 'card' && req.body.layout) { const L = cleanLayout(req.body.layout); if (L) await store.colSet('cardlayouts', id, L); }
+    if (type === 'frame' && req.body.fit) { const F = cleanFit(req.body.fit); if (F) await store.colSet('framefits', id, F); }
+    res.json({ id });
   }));
   r.put('/items/:id', wrap(async (req, res) => {
     const patch = {};
