@@ -144,7 +144,7 @@ function Questions({ user }) {
       </ul>
 
       {editing && <QuestionForm user={user} files={files.map((f) => f[0])} defaultFile={fileSel === 'all' ? '' : fileSel} q={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
-      {importing && <ImportModal user={user} defaultFile={fileSel === 'all' ? '' : fileSel} onClose={() => setImporting(false)} onDone={load} />}
+      {importing && <ImportModal user={user} files={files.map(([name, e]) => ({ name, n: e.n, category: fileCategory(name) }))} defaultFile={fileSel === 'all' ? '' : fileSel} onClose={() => setImporting(false)} onDone={load} />}
     </div>
   );
 }
@@ -208,8 +208,10 @@ function QuestionForm({ user, q, files = [], defaultFile = '', onClose, onSaved 
   );
 }
 
-function ImportModal({ user, defaultFile = '', onClose, onDone }) {
-  const [fileName, setFileName] = useState(defaultFile);
+function ImportModal({ user, files = [], defaultFile = '', onClose, onDone }) {
+  const [target, setTarget] = useState(files.some((f) => f.name === defaultFile) ? defaultFile : ''); // 既存ファイルへ追加するとき
+  const [fileName, setFileName] = useState(files.some((f) => f.name === defaultFile) ? '' : defaultFile);
+  const targetInfo = files.find((f) => f.name === target);
   const [text, setText] = useState('');
   const [published, setPublished] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -233,10 +235,13 @@ function ImportModal({ user, defaultFile = '', onClose, onDone }) {
     const questions = Array.isArray(data) ? data : data.questions;
     if (!Array.isArray(questions)) return setMsg({ ok: false, text: '配列（または {"questions":[...]}）で指定してください' });
     try {
-      const r = await adminApi(user, '/questions/import', { method: 'POST', body: { questions: fileName.trim() ? questions.map((x) => ({ ...x, file: fileName.trim() })) : questions, published } });
+      const body = target
+        ? { questions, target, published }
+        : { questions: fileName.trim() ? questions.map((x) => ({ ...x, file: fileName.trim() })) : questions, published };
+      const r = await adminApi(user, '/questions/import', { method: 'POST', body });
       setMsg({
         ok: true,
-        text: `${r.imported}件を取り込みました（重複スキップ ${r.skipped}件 / エラー ${r.errors.length}件）`,
+        text: `${r.imported}件を取り込みました（重複スキップ ${r.skipped}件 / エラー ${r.errors.length}件）${r.file ? `　→ 📁${r.file}（分野: ${r.category}）` : ''}`,
         errors: r.errors,
       });
       onDone();
@@ -246,8 +251,19 @@ function ImportModal({ user, defaultFile = '', onClose, onDone }) {
   return (
     <Modal title="JSON取り込み" onClose={onClose}>
       <p className="text-xs text-slate-400 mb-2">形式: <code>[{'{'}"question":"…","choices":["A","B","C","D"],"answer":0,"explanation":"任意"{'}'}]</code>（answerは0始まり）。同じ問題文は重複としてスキップされます。</p>
-      <label className="text-xs text-slate-400">ファイル名（空欄なら、選んだJSONのファイル名がそのままファイル名になります）</label>
-      <input className={`${input} mb-2`} maxLength={40} value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="例: 基礎看護学" />
+      <label className="text-xs text-slate-400">取り込み先</label>
+      <select className={`${input} mb-2`} value={target} onChange={(e) => setTarget(e.target.value)}>
+        <option value="">新しいファイル（下で名前を指定。空欄ならJSONのファイル名）</option>
+        {files.map((f) => <option key={f.name} value={f.name}>既存: 📁 {f.name}（{f.n}問・分野: {f.category}）</option>)}
+      </select>
+      {target ? (
+        <p className="text-xs text-emerald-300 mb-2">「{target}」の末尾に追加します。分野は、このファイルの設定「{targetInfo?.category || target}」がそのまま使われます（JSONに分野が書いてあっても無視します）。</p>
+      ) : (
+        <>
+          <label className="text-xs text-slate-400">新しいファイル名（空欄なら、選んだJSONのファイル名がそのままファイル名になります）</label>
+          <input className={`${input} mb-2`} maxLength={40} value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="例: 基礎看護学" />
+        </>
+      )}
       <input type="file" multiple accept=".json,application/json" onChange={onFile} className="mb-2 text-sm" />
       <textarea className={`${input} font-mono text-xs mb-3`} rows={8} placeholder="ここにJSONを貼り付け、またはファイルを選択" value={text} onChange={(e) => setText(e.target.value)} />
       <label className="flex items-center gap-2 mb-3 text-sm"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />取り込み後すぐに公開する（オフなら非公開で取り込み）</label>

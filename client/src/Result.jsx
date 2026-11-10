@@ -19,7 +19,7 @@ export default function Result({ g, user }) {
             <div className="flex justify-between items-center">
               <span className="font-bold flex items-center gap-2 min-w-0">
                 <Avatar iconId={r.iconId} frameId={r.frameId} size={36} />
-                <span className="truncate">{r.place}位　{r.name}</span>
+                <span className="truncate">{r.place}位{r.tie ? '（同率）' : ''}　{r.name}</span>
               </span>
               <span className={`text-xl font-extrabold ${r.delta > 0 ? 'text-emerald-400' : r.delta < 0 ? 'text-red-400' : ''}`}>
                 {r.delta > 0 ? '+' : ''}{r.delta}

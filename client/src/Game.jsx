@@ -54,10 +54,13 @@ export default function Game({ g, user }) {
   const remain = Math.max(0, q.timeLimitMs - (now - q.recvAt));
   const answered = q.myChoice !== null;
   const me = match.players.find((p) => p.uid === myUid);
-  // 現在の順位: 得点 → 平均解答時間（最終のレート計算と同じ基準）。計算の前から平均時間が順位に効く
+  // 現在の順位: 得点だけで決まり、同点は同率（1位,1位,3位…）。並びだけ、同点なら平均解答時間が速い順
   const avg = (uid) => avgTimes?.[uid];
-  const order = [...match.players].sort((a, b) => (scores[b.uid] ?? 0) - (scores[a.uid] ?? 0) || (avg(a.uid) ?? 99) - (avg(b.uid) ?? 99));
-  const myPlace = order.findIndex((p) => p.uid === myUid) + 1;
+  const sc = (uid) => scores[uid] ?? 0;
+  const order = [...match.players].sort((a, b) => sc(b.uid) - sc(a.uid) || (avg(a.uid) ?? 99) - (avg(b.uid) ?? 99));
+  const placeOf = (uid) => 1 + match.players.filter((p) => sc(p.uid) > sc(uid)).length;
+  const myPlace = placeOf(myUid);
+  const allTied = new Set(match.players.map((p) => sc(p.uid))).size <= 1; // 全員同点なら👑は付けない
   const correctCount = finished ? Object.values(q.result.results).filter((x) => x.correct).length : 0;
 
   let status = '解答してください！';
@@ -109,8 +112,8 @@ export default function Game({ g, user }) {
                 {scores[p.uid] ?? 0}点
                 {res?.gain > 0 && <span style={{ color: q.secondary ? '#fb923c' : '#4ade80' }}>+{res.gain}{q.secondary ? '★' : ''}</span>}
               </Box>
-              <Box x={x + 14} y={469} w={188} h={26} className="flex items-center justify-center gap-1" style={{ fontSize: fs(17), fontWeight: 700, color: i === 0 && avg(p.uid) !== undefined ? '#fde68a' : '#bfd6f6', textShadow: '0 1px 3px #000' }}>
-                {i === 0 && avg(p.uid) !== undefined && <span>👑</span>}平均 {avg(p.uid) !== undefined ? `${avg(p.uid).toFixed(1)}秒` : '--'}
+              <Box x={x + 14} y={469} w={188} h={26} className="flex items-center justify-center gap-1" style={{ fontSize: fs(17), fontWeight: 700, color: placeOf(p.uid) === 1 && !allTied && avg(p.uid) !== undefined ? '#fde68a' : '#bfd6f6', textShadow: '0 1px 3px #000' }}>
+                {placeOf(p.uid) === 1 && !allTied && avg(p.uid) !== undefined && <span>👑</span>}平均 {avg(p.uid) !== undefined ? `${avg(p.uid).toFixed(1)}秒` : '--'}
               </Box>
               {p.uid === myUid && <Box x={x} y={222} w={217} h={244} className="rounded-xl border-4 border-white/80 pointer-events-none" />}
             </div>

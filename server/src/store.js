@@ -1,11 +1,29 @@
 import admin from 'firebase-admin';
+import crypto from 'crypto';
 import { cfg } from './config.js';
 
 const useFirebase = !!process.env.FIREBASE_SERVICE_ACCOUNT;
 let db = null;
 const mem = new Map(); // 開発モード用 users
-const memQ = new Map(); // 開発モード用 questions
 let memSeq = 1;
+
+// ---------- 読み取り/書き込み回数の記録（Firestore無料枠の目安。管理画面の設定に表示） ----------
+export const stats = { since: Date.now(), reads: 0, writes: 0, by: {} };
+const note = (kind, label, n = 1) => {
+  const c = Math.max(1, n | 0);
+  stats[kind] += c;
+  const k = `${kind === 'reads' ? 'r' : 'w'}:${label}`;
+  stats.by[k] = (stats.by[k] || 0) + c;
+};
+
+// Firestore の set(merge) と同じ動き（オブジェクトは中まで混ぜ、配列は置き換え）
+const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+function mergeInto(base, patch) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(patch)) out[k] = isObj(v) && isObj(out[k]) ? mergeInto(out[k], v) : v;
+  return out;
+}
+const clone = (v) => structuredClone(v);
 
 export const isDevMode = () => !useFirebase;
 
@@ -72,148 +90,331 @@ async function uniqueCode() {
   }
 }
 
+// ユーザーは「見たらメモリに置く」。書き込みは Firestore とメモリの両方へ（単一サーバー前提）。
+// 30分触られなければメモリから外し、次に必要になったときだけ読み直す。
+const ucache = new Map(); // uid -> { doc, at }
+const U_TTL = 30 * 60_000;
+const U_MAX = 5000;
+const ucGet = (uid) => {
+  const e = ucache.get(uid);
+  if (!e) return null;
+  e.at = Date.now(); ucache.delete(uid); ucache.set(uid, e); // 使った順に並べ直す
+  return e.doc;
+};
+const ucPut = (uid, doc) => {
+  const d = { ...doc, uid }; delete d.createdAt; // サーバー時刻型は持たない
+  ucache.delete(uid); ucache.set(uid, { doc: d, at: Date.now() });
+  while (ucache.size > U_MAX) ucache.delete(ucache.keys().next().value);
+};
+setInterval(() => {
+  const now = Date.now();
+  for (const [uid, e] of ucache) if (now - e.at > U_TTL) ucache.delete(uid);
+}, 5 * 60_000).unref();
+
+// 管理画面のプレイヤー一覧・bot統計用の一覧キャッシュ（120秒）。書き込みは中身にも反映する
+const LIST_TTL = 120_000;
+const lcache = new Map(); // limit -> { at, list, byUid }
+// ランキング(マスター上位)は、順位に関わる変更があったときだけ、最短5分おきに読み直す
+const TOP_MIN_INTERVAL = 300_000;
+const TOP_MIN_SIZE = 100;
+let topC = { at: 0, list: null, size: 0 };
+let topDirty = true;
+const TOP_APPEAR = ['isMaster', 'displayName', 'iconId', 'frameId', 'cardId', 'badgeId'];
+
 export async function findUserByFriendCode(code) {
+  for (const e of ucache.values()) if (e.doc.friendCode === code) return clone(norm(e.doc));
   if (useFirebase) {
     const snap = await db.collection('users').where('friendCode', '==', code).limit(1).get();
+    note('reads', 'users', snap.size);
     return snap.empty ? null : norm({ uid: snap.docs[0].id, ...snap.docs[0].data() });
   }
+  note('reads', 'users');
   const u = [...mem.values()].find((x) => x.friendCode === code);
   return u ? norm(u) : null;
 }
 
 export async function getUser(uid) {
+  const hit = ucGet(uid);
+  if (hit) return clone(norm(hit));
+  let raw = null;
   if (useFirebase) {
     const snap = await db.collection('users').doc(uid).get();
-    return snap.exists ? norm({ uid, ...snap.data() }) : null;
+    raw = snap.exists ? snap.data() : null;
+  } else {
+    raw = mem.has(uid) ? clone(mem.get(uid)) : null;
   }
-  return mem.has(uid) ? norm(mem.get(uid)) : null;
+  note('reads', 'users');
+  if (!raw) return null;
+  ucPut(uid, raw);
+  return clone(norm(ucache.get(uid).doc));
 }
 
 export async function getOrCreateUser(uid, name, photoURL, email = '') {
-  if (useFirebase) {
-    const ref = db.collection('users').doc(uid);
-    const snap = await ref.get();
-    if (snap.exists) {
-      const u = norm({ uid, ...snap.data() });
-      const patch = {};
-      if (!u.email && email) { u.email = email; patch.email = email; }
-      if (!u.friendCode) { u.friendCode = await uniqueCode(); patch.friendCode = u.friendCode; }
-      if (Object.keys(patch).length) await ref.set(patch, { merge: true });
-      return u;
-    }
-    const data = { ...defaults(uid, DEFAULT_NAME, photoURL, email), friendCode: await uniqueCode() };
-    const { uid: _u, ...body } = data;
-    await ref.set({ ...body, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-    return data;
+  const u = await getUser(uid);
+  if (u) {
+    const patch = {};
+    if (!u.email && email) { u.email = email; patch.email = email; }
+    if (useFirebase && !u.friendCode) { u.friendCode = await uniqueCode(); patch.friendCode = u.friendCode; }
+    if (Object.keys(patch).length) await updateUser(uid, patch);
+    return u;
   }
-  if (!mem.has(uid)) mem.set(uid, { ...defaults(uid, DEFAULT_NAME, photoURL, email), friendCode: await uniqueCode() });
-  return norm(mem.get(uid));
+  const data = { ...defaults(uid, DEFAULT_NAME, photoURL, email), friendCode: await uniqueCode() };
+  const { uid: _u, ...body } = data;
+  if (useFirebase) await db.collection('users').doc(uid).set({ ...body, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  else mem.set(uid, clone(data));
+  note('writes', 'users');
+  ucPut(uid, data);
+  return clone(norm(data));
 }
 
 export async function updateUser(uid, fields) {
   const { uid: _u, ...body } = fields;
   if (useFirebase) await db.collection('users').doc(uid).set(body, { merge: true });
-  else mem.set(uid, { ...(mem.get(uid) || {}), ...fields });
+  else mem.set(uid, mergeInto(mem.get(uid) || {}, clone(fields)));
+  note('writes', 'users');
+  const patch = clone(body);
+  const e = ucache.get(uid);
+  if (e) e.doc = mergeInto(e.doc, patch);
+  for (const c of lcache.values()) { // 一覧キャッシュにも反映（BAN・コイン付与などがすぐ見えるように）
+    const row = c.byUid.get(uid);
+    if (row) Object.assign(row, mergeInto(row, patch));
+  }
+  if (patch.mr != null || (topC.list?.some((x) => x.uid === uid) && (('mr' in patch) || TOP_APPEAR.some((k) => k in patch)))) topDirty = true;
 }
 
-export async function listUsers(limit = 2000) {
+export async function listUsers(limit = 2000, { fresh = false } = {}) {
+  const c = lcache.get(limit);
+  if (!fresh && c && Date.now() - c.at < LIST_TTL) return c.list.map((u) => norm(u));
+  let list;
   if (useFirebase) {
     const snap = await db.collection('users').limit(limit).get();
-    return snap.docs.map((d) => norm({ uid: d.id, ...d.data() }));
+    note('reads', 'users-list', snap.size);
+    list = snap.docs.map((d) => { const o = { uid: d.id, ...d.data() }; delete o.createdAt; return o; });
+  } else {
+    note('reads', 'users-list', mem.size);
+    list = [...mem.values()].map((u) => clone(u));
   }
-  return [...mem.values()].map((u) => norm(u));
+  lcache.set(limit, { at: Date.now(), list, byUid: new Map(list.map((u) => [u.uid, u])) });
+  return list.map((u) => norm(u));
 }
+// シーズン切替など、大きな更新の後に呼ぶ（一覧とランキングを次回すぐ読み直す）
+export const dropUserLists = () => { lcache.clear(); topC = { at: 0, list: null, size: 0 }; topDirty = true; };
 
 export async function getTopMasters(limit = 100) {
-  if (useFirebase) {
-    // 複合インデックス不要。mrがnullのユーザーは降順の最後に来るので除外する
-    const snap = await db.collection('users').orderBy('mr', 'desc').limit(limit).get();
-    return snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((u) => u.isMaster && u.mr != null);
+  const want = Math.max(limit, TOP_MIN_SIZE);
+  if (!topC.list || topC.size < want || (topDirty && Date.now() - topC.at > TOP_MIN_INTERVAL)) {
+    topDirty = false; // 読んでいる途中の変更は次回に反映される
+    let list;
+    if (useFirebase) {
+      // 複合インデックス不要。mrがnullのユーザーは降順の最後に来るので除外する
+      const snap = await db.collection('users').orderBy('mr', 'desc').limit(want).get();
+      note('reads', 'ranking', snap.size);
+      list = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((u) => u.isMaster && u.mr != null);
+    } else {
+      note('reads', 'ranking', mem.size);
+      list = [...mem.values()].filter((u) => u.isMaster).sort((a, b) => b.mr - a.mr).slice(0, want);
+    }
+    topC = { at: Date.now(), list, size: want };
   }
-  return [...mem.values()].filter((u) => u.isMaster).sort((a, b) => b.mr - a.mr).slice(0, limit);
+  return topC.list.slice(0, limit).map((u) => ({ ...u }));
 }
 
 export async function saveMatch(doc) {
-  if (useFirebase) await db.collection('matches').add({ ...doc, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  if (useFirebase) { await db.collection('matches').add({ ...doc, createdAt: admin.firestore.FieldValue.serverTimestamp() }); note('writes', 'matches'); }
 }
 
 // ---------- questions ----------
-// { id, question, choices[4], answer(0-3), explanation, published, createdAt, updatedAt }
+// 数百問ずつ1ドキュメント(qbundles)にまとめて保存し、全問題をメモリに持つ。
+//  - 起動時の読み取りは「ドキュメント数」だけ（1万問でも約35回）
+//  - 一覧・出題はメモリから。編集すると、その問題が入っているドキュメントだけ書き直す
+// { id, question, choices[4], answer(0-3), explanation, file, category, published, createdAt, updatedAt }
+const QB = 'qbundles';
+const Q_PER = 300; // 1ドキュメントあたりの問題数の上限
+const Q_BYTES = 900_000; // 1ドキュメントの上限(Firestoreは1MiB)。超えたら半分に分ける
+let qmem = null; // { bundles: Map(bid -> question[]), where: Map(qid -> bid) }
+let qloading = null;
+let qchain = Promise.resolve();
+const qlock = (fn) => { const p = qchain.then(fn); qchain = p.catch(() => {}); return p; };
+const bidOf = (n) => `b${String(n).padStart(4, '0')}`;
+
+async function qLoad() {
+  if (qmem) return qmem;
+  if (!qloading) {
+    qloading = (async () => {
+      const rows = await rawList(QB);
+      const meta = rows.some((r) => r.id === '_meta');
+      const m = { bundles: new Map(), where: new Map() };
+      for (const r of rows.filter((x) => x.id !== '_meta').sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        const items = Array.isArray(r.items) ? r.items : [];
+        m.bundles.set(r.id, items);
+        items.forEach((q) => m.where.set(q.id, r.id));
+      }
+      if (!meta) { // 旧形式(questionsコレクション)からの引っ越し。旧データはそのまま残す
+        const old = (await rawList('questions')).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        for (let i = 0; i < old.length; i += Q_PER) {
+          const bid = bidOf(m.bundles.size + 1);
+          const items = old.slice(i, i + Q_PER);
+          m.bundles.set(bid, items);
+          items.forEach((q) => m.where.set(q.id, bid));
+          await qWrite(m, bid);
+        }
+        await rawSet(QB, '_meta', { migratedAt: Date.now(), from: old.length });
+        if (old.length) console.log(`[questions] 旧形式の${old.length}問を${m.bundles.size}個のドキュメントにまとめました（旧データは questions コレクションに残っています。不要なら Firebase コンソールで削除できます）`);
+      }
+      qmem = m;
+      return m;
+    })().catch((e) => { qloading = null; throw e; });
+  }
+  return qloading;
+}
+
+async function qWrite(m, bid) {
+  let items = m.bundles.get(bid) || [];
+  if (!items.length) { m.bundles.delete(bid); await rawDel(QB, bid); return; }
+  if (items.length > 1 && Buffer.byteLength(JSON.stringify(items)) > Q_BYTES) { // 大きくなりすぎたら後半を新しいドキュメントへ
+    const nb = bidOf(Math.max(0, ...[...m.bundles.keys()].map((k) => Number(k.slice(1)))) + 1);
+    const half = items.length >> 1;
+    const moved = items.slice(half);
+    items = items.slice(0, half);
+    m.bundles.set(bid, items); m.bundles.set(nb, moved);
+    moved.forEach((q) => m.where.set(q.id, nb));
+    await qWrite(m, nb);
+  }
+  await rawSet(QB, bid, { items, n: items.length });
+}
+const qFlush = async (m, dirty) => { for (const bid of dirty) await qWrite(m, bid); };
+const lastBid = (m) => [...m.bundles.keys()].sort().pop();
+const newQid = () => crypto.randomBytes(10).toString('hex');
+
 export async function listQuestions() {
-  if (useFirebase) {
-    const snap = await db.collection('questions').get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  }
-  return [...memQ.values()].map((q) => ({ ...q }));
+  const m = await qLoad();
+  return [...m.bundles.values()].flat().map((q) => ({ ...q }));
 }
 
-export async function createQuestions(list) {
+export const createQuestions = (list) => qlock(async () => {
+  const m = await qLoad();
   const now = Date.now();
-  const out = [];
-  if (useFirebase) {
-    for (let i = 0; i < list.length; i += 400) {
-      const batch = db.batch();
-      list.slice(i, i + 400).forEach((q) => {
-        const ref = db.collection('questions').doc();
-        const data = { ...q, createdAt: now, updatedAt: now };
-        batch.set(ref, data);
-        out.push({ id: ref.id, ...data });
-      });
-      await batch.commit();
-    }
-  } else {
-    list.forEach((q) => {
-      const id = `q${memSeq++}`;
-      const data = { id, ...q, createdAt: now, updatedAt: now };
-      memQ.set(id, data);
-      out.push(data);
-    });
+  const out = []; const dirty = new Set();
+  for (const q of list) {
+    const data = { ...q, id: newQid(), createdAt: now, updatedAt: now };
+    let bid = lastBid(m);
+    if (!bid || m.bundles.get(bid).length >= Q_PER) { bid = bidOf(bid ? Number(bid.slice(1)) + 1 : 1); m.bundles.set(bid, []); }
+    m.bundles.get(bid).push(data); m.where.set(data.id, bid); dirty.add(bid); out.push(data);
   }
-  return out;
-}
+  await qFlush(m, dirty);
+  return out.map((q) => ({ ...q }));
+});
 
-export async function updateQuestion(id, fields) {
-  const data = { ...fields, updatedAt: Date.now() };
-  if (useFirebase) {
-    const ref = db.collection('questions').doc(id);
-    if (!(await ref.get()).exists) return false;
-    await ref.set(data, { merge: true });
-  } else {
-    if (!memQ.has(id)) return false;
-    memQ.set(id, { ...memQ.get(id), ...data });
+export const updateQuestions = (ids, fields) => qlock(async () => {
+  const m = await qLoad();
+  const now = Date.now(); const dirty = new Set(); let n = 0;
+  for (const id of ids) {
+    const bid = m.where.get(id);
+    if (!bid) continue;
+    const items = m.bundles.get(bid);
+    const i = items.findIndex((q) => q.id === id);
+    if (i < 0) continue;
+    items[i] = { ...items[i], ...fields, updatedAt: now };
+    dirty.add(bid); n += 1;
   }
-  return true;
-}
+  await qFlush(m, dirty);
+  return n;
+});
+export const updateQuestion = async (id, fields) => (await updateQuestions([id], fields)) > 0;
 
-export async function deleteQuestion(id) {
-  if (useFirebase) await db.collection('questions').doc(id).delete();
-  else memQ.delete(id);
-}
+export const deleteQuestions = (ids) => qlock(async () => {
+  const m = await qLoad();
+  const gone = new Set(ids); const dirty = new Set();
+  for (const id of gone) { const bid = m.where.get(id); if (bid) { dirty.add(bid); m.where.delete(id); } }
+  for (const bid of dirty) m.bundles.set(bid, m.bundles.get(bid).filter((q) => !gone.has(q.id)));
+  await qFlush(m, dirty);
+  return dirty.size;
+});
+export const deleteQuestion = (id) => deleteQuestions([id]);
 
-// ---------- 汎用コレクション (mails / items / reports / settings) ----------
+// ---------- 汎用コレクション (mails / items / reports / settings ...) ----------
 const memCols = new Map();
 const memCol = (n) => { if (!memCols.has(n)) memCols.set(n, new Map()); return memCols.get(n); };
 
-export async function colList(name) {
-  if (useFirebase) return (await db.collection(name).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
-  return [...memCol(name).values()].map((x) => ({ ...x }));
+async function rawList(name) {
+  if (useFirebase) {
+    const snap = await db.collection(name).get();
+    note('reads', name, snap.size);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+  const rows = [...memCol(name).values()].map((x) => clone(x));
+  note('reads', name, rows.length);
+  return rows;
 }
-export async function colGet(name, id) {
+async function rawGet(name, id) {
+  note('reads', name);
   if (useFirebase) { const d = await db.collection(name).doc(id).get(); return d.exists ? { id, ...d.data() } : null; }
   const v = memCol(name).get(id);
+  return v ? clone(v) : null;
+}
+async function rawAdd(name, data) {
+  note('writes', name);
+  if (useFirebase) return (await db.collection(name).add(data)).id;
+  const id = `${name[0]}${memSeq++}`;
+  memCol(name).set(id, { id, ...clone(data) });
+  return id;
+}
+async function rawSet(name, id, data) {
+  note('writes', name);
+  if (useFirebase) await db.collection(name).doc(id).set(data, { merge: true });
+  else memCol(name).set(id, { ...mergeInto(memCol(name).get(id) || {}, clone(data)), id });
+}
+async function rawDel(name, id) {
+  note('writes', name);
+  if (useFirebase) await db.collection(name).doc(id).delete();
+  else memCol(name).delete(id);
+}
+
+// ほとんど変わらないコレクションは、最初に1回だけ全部読んでメモリに置き、
+// 書き込みのときだけ Firestore とメモリの両方を更新する（読み取りは再起動のときだけ）
+const CACHED = new Set(['items', 'sets', 'gachas', 'cardlayouts', 'framefits', 'badgedefs', 'mails', 'sounds']);
+const ccache = new Map(); // name -> Map(id -> doc)
+const cloading = new Map(); // name -> Promise<Map>
+const cstale = new Set(); // 読み込み中に書き込みがあった → 読み込み後に捨てる
+async function ccLoad(name) {
+  if (ccache.has(name)) return ccache.get(name);
+  if (!cloading.has(name)) {
+    cloading.set(name, (async () => {
+      try {
+        const m = new Map((await rawList(name)).map((r) => [r.id, r]));
+        if (cstale.delete(name)) return m; // 今回の呼び出しだけに使い、キャッシュは作らない
+        ccache.set(name, m);
+        return m;
+      } finally { cloading.delete(name); }
+    })());
+  }
+  return cloading.get(name);
+}
+const ccTouch = (name, fn) => {
+  const m = ccache.get(name);
+  if (m) fn(m);
+  else if (cloading.has(name)) cstale.add(name);
+};
+
+export async function colList(name) {
+  if (!CACHED.has(name)) return rawList(name);
+  return [...(await ccLoad(name)).values()].map((x) => ({ ...x }));
+}
+export async function colGet(name, id) {
+  if (!CACHED.has(name)) return rawGet(name, id);
+  const v = (await ccLoad(name)).get(id);
   return v ? { ...v } : null;
 }
 export async function colAdd(name, data) {
-  if (useFirebase) return (await db.collection(name).add(data)).id;
-  const id = `${name[0]}${memSeq++}`;
-  memCol(name).set(id, { id, ...data });
+  const id = await rawAdd(name, data);
+  if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { id, ...clone(data) }));
   return id;
 }
 export async function colSet(name, id, data) {
-  if (useFirebase) await db.collection(name).doc(id).set(data, { merge: true });
-  else memCol(name).set(id, { ...(memCol(name).get(id) || {}), id, ...data });
+  await rawSet(name, id, data);
+  if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { ...mergeInto(m.get(id) || {}, clone(data)), id }));
 }
 export async function colDel(name, id) {
-  if (useFirebase) await db.collection(name).doc(id).delete();
-  else memCol(name).delete(id);
+  await rawDel(name, id);
+  if (CACHED.has(name)) ccTouch(name, (m) => m.delete(id));
 }

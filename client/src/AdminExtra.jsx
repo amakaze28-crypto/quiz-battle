@@ -5,7 +5,7 @@ import { RARITY, RARITIES, TYPE_LABEL } from './icons';
 import { ItemViewModal, DraftCardEditor, DraftFrameEditor } from './AdminCards';
 import { LAYOUTS } from './PlayerCard';
 import { DEFAULT_FIT, loadCardLayouts } from './cardLayout';
-import { LoginStats, MaintenanceCard } from './AdminStats';
+import { LoginStats, MaintenanceCard, ReadStatsCard } from './AdminStats';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
@@ -302,6 +302,7 @@ export function SettingsAdmin({ user }) {
     <div className="grid gap-5 lg:grid-cols-2">
       <MaintenanceCard user={user} />
       <LoginStats user={user} />
+      <ReadStatsCard user={user} />
       <div className={card}>
         <h2 className="font-bold mb-1">ミッション報酬（コイン）</h2>
         {[['login', 'ログインする'], ['play', '5マッチプレイする'], ['win', '3勝する']].map(([k, label]) => (

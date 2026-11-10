@@ -8,27 +8,36 @@ import { TIERS, tierIndex } from './rank.js';
 
 const NAMES = ['さくら', 'はると', 'みなと', 'ゆうき', 'あおい', 'ひなた', 'そうた', 'りく', 'めい', 'こはる', 'れん', 'いちか', 'かい', 'ゆま', 'たくみ', 'のぞみ', 'しおり', 'けんた', 'まりな', 'ひかる', 'なつき', 'だいち', 'あかね', 'とうま'];
 const FALLBACK = { accuracy: 0.6, avgSec: 12 };
-const cache = new Map();
 
 export const isBot = (uid) => typeof uid === 'string' && uid.startsWith('bot:');
 
-// ランク帯(tier key)ごとの統計。60秒キャッシュ
+// ランク帯(tier key)ごとの統計。全帯を1回の走査でまとめて集計し、10分キャッシュ
+let bandCache = { at: 0, agg: null };
+let bandLoading = null;
+async function bandAgg() {
+  if (bandCache.agg && Date.now() - bandCache.at < 600_000) return bandCache.agg;
+  if (!bandLoading) {
+    bandLoading = (async () => {
+      const agg = {};
+      try {
+        for (const u of await store.listUsers(5000)) {
+          if (u.isMaster) continue;
+          const e = agg[TIERS[tierIndex(u.pt)].key] ||= { q: 0, correct: 0, ans: 0, time: 0 };
+          e.q += u.statQ || 0; e.correct += u.statCorrect || 0; e.ans += u.statAns || 0; e.time += u.statTime || 0;
+        }
+      } catch { /* 統計が取れなければ既定値 */ }
+      bandCache = { at: Date.now(), agg };
+      return agg;
+    })().finally(() => { bandLoading = null; });
+  }
+  return bandLoading;
+}
 export async function bandStats(tierKey) {
-  const hit = cache.get(tierKey);
-  if (hit && Date.now() - hit.at < 60000) return hit.v;
-  let q = 0; let correct = 0; let ans = 0; let time = 0;
-  try {
-    for (const u of await store.listUsers(5000)) {
-      if (u.isMaster || TIERS[tierIndex(u.pt)].key !== tierKey) continue;
-      q += u.statQ || 0; correct += u.statCorrect || 0; ans += u.statAns || 0; time += u.statTime || 0;
-    }
-  } catch { /* 統計が取れなければ既定値 */ }
-  const v = {
-    accuracy: q >= 20 ? Math.min(0.98, Math.max(0.05, correct / q)) : FALLBACK.accuracy,
-    avgSec: ans >= 10 ? time / ans : FALLBACK.avgSec,
+  const e = (await bandAgg())[tierKey] || { q: 0, correct: 0, ans: 0, time: 0 };
+  return {
+    accuracy: e.q >= 20 ? Math.min(0.98, Math.max(0.05, e.correct / e.q)) : FALLBACK.accuracy,
+    avgSec: e.ans >= 10 ? e.time / e.ans : FALLBACK.avgSec,
   };
-  cache.set(tierKey, { at: Date.now(), v });
-  return v;
 }
 
 // マッチング用のエントリ(Roomがそのまま扱える形)を作る

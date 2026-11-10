@@ -35,6 +35,12 @@ export function mountAdmin(app, { io, matchmaker }) {
     try { await fn(req, res); } catch (e) { console.error('[admin]', e); res.status(500).json({ error: 'サーバーエラー' }); }
   };
 
+  // ---- Firestoreの読み取り/書き込み回数（このサーバーが起動してからの合計と内訳） ----
+  r.get('/store-stats', wrap(async (_req, res) => {
+    const by = Object.entries(store.stats.by).map(([k, n]) => ({ kind: k[0] === 'r' ? 'reads' : 'writes', name: k.slice(2), n })).sort((a, b) => b.n - a.n);
+    res.json({ since: store.stats.since, reads: store.stats.reads, writes: store.stats.writes, by: by.slice(0, 12), dev: store.isDevMode() });
+  }));
+
   // ---- 問題 ----
   r.get('/questions', wrap(async (_req, res) => {
     const list = await store.listQuestions();
@@ -62,20 +68,25 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.post('/questions/import', wrap(async (req, res) => {
     const list = Array.isArray(req.body.questions) ? req.body.questions : null;
     if (!list) return res.status(400).json({ error: '"questions" に配列を指定してください' });
-    const existing = new Set((await store.listQuestions()).map((q) => q.question));
+    const all = await store.listQuestions();
+    const existing = new Set(all.map((q) => q.question));
     const toCreate = []; const errors = []; let skipped = 0;
     const cats = await fileCats();
+    // target を指定すると、全問をそのファイルへ入れる。既存のファイルなら、分野もそのファイルの設定に合わせる（JSON内の分野は無視）
+    const target = typeof req.body.target === 'string' && req.body.target.trim() ? fileName(req.body.target) : '';
+    const targetExists = !!target && all.some((q) => fileName(q.file) === target);
     list.forEach((raw, i) => {
       const n = normalizeQuestion(raw);
       if (!n.ok) return errors.push({ index: i, message: n.error });
       if (existing.has(n.value.question)) { skipped += 1; return; }
       existing.add(n.value.question);
-      const file = fileName(raw?.file ?? req.body.file);
-      toCreate.push({ ...n.value, file, category: n.value.category || cats.get(file) || '', published: !!req.body.published });
+      const file = target || fileName(raw?.file ?? req.body.file);
+      const category = targetExists ? (cats.get(file) || '') : (n.value.category || cats.get(file) || '');
+      toCreate.push({ ...n.value, file, category, published: !!req.body.published });
     });
     if (toCreate.length) await store.createQuestions(toCreate);
     await reloadQuestions();
-    res.json({ imported: toCreate.length, skipped, errors });
+    res.json({ imported: toCreate.length, skipped, errors, file: target, category: target ? (cats.get(target) || target) : '', existing: targetExists });
   }));
 
   // ファイル単位の操作（名前変更・一括公開/非公開・削除）
@@ -83,7 +94,7 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.post('/questions/files/rename', wrap(async (req, res) => {
     const from = fileName(req.body.from); const to = fileName(req.body.to);
     const list = await inFile(from);
-    for (const q of list) await store.updateQuestion(q.id, { file: to });
+    await store.updateQuestions(list.map((q) => q.id), { file: to });
     await reloadQuestions();
     res.json({ moved: list.length });
   }));
@@ -91,19 +102,19 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.post('/questions/files/category', wrap(async (req, res) => {
     const list = await inFile(fileName(req.body.file));
     const category = typeof req.body.category === 'string' ? req.body.category.trim().slice(0, 40) : '';
-    for (const q of list) await store.updateQuestion(q.id, { category });
+    await store.updateQuestions(list.map((q) => q.id), { category });
     await reloadQuestions();
     res.json({ changed: list.length });
   }));
   r.post('/questions/files/publish', wrap(async (req, res) => {
     const list = await inFile(fileName(req.body.file));
-    for (const q of list) await store.updateQuestion(q.id, { published: !!req.body.published });
+    await store.updateQuestions(list.map((q) => q.id), { published: !!req.body.published });
     await reloadQuestions();
     res.json({ changed: list.length });
   }));
   r.post('/questions/files/delete', wrap(async (req, res) => {
     const list = await inFile(fileName(req.body.file));
-    for (const q of list) await store.deleteQuestion(q.id);
+    await store.deleteQuestions(list.map((q) => q.id));
     await reloadQuestions();
     res.json({ deleted: list.length });
   }));
@@ -112,7 +123,7 @@ export function mountAdmin(app, { io, matchmaker }) {
     const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
     const to = fileName(req.body.to);
     const cat = (await fileCats()).get(to) || '';
-    for (const id of ids) await store.updateQuestion(String(id), { file: to, category: cat });
+    await store.updateQuestions(ids.map(String), { file: to, category: cat });
     await reloadQuestions();
     res.json({ moved: ids.length });
   }));

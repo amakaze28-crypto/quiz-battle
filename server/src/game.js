@@ -1,5 +1,5 @@
 import { cfg } from './config.js';
-import { calculateRateChange, applyDelta } from './rating.js';
+import { computeDeltas, assignPlaces, questionPoints, applyDelta } from './rating.js';
 import { rankInfo } from './rank.js';
 import * as store from './store.js';
 import * as missions from './missions.js';
@@ -80,7 +80,7 @@ export class Room {
   }
 
   // 他の人が正解した後も、全員が解答を終えるか制限時間まで解答できる。
-  // 正解ごとに1点。Secondary(既定5%)が発動するとその問題の得点が2倍。誤答(お手つき)はその問題の解答権を失う
+  // 正解した問題の得点 = 100 × タイム倍率（0秒=2.0倍 〜 60秒=1.0倍）。Secondary(既定5%)が発動するとその問題の得点が2倍。誤答は0点
   handleAnswer(uid, { index, choice }) {
     const c = this.cur;
     if (!c || c.done || index !== c.index) return;
@@ -95,7 +95,7 @@ export class Room {
 
     const correct = choice === this.questions[c.index].answer;
     const secondary = correct && c.secondary; // 問題がSecondaryなら、正解した全員が2倍
-    const gain = correct ? (secondary ? 2 : 1) : 0;
+    const gain = correct ? questionPoints(adj / 1000, limitSec()) * (secondary ? 2 : 1) : 0;
     c.answers.set(uid, { choice, correct, adj, gain, secondary });
 
     p.socket.emit('answer:result', { correct, gain, secondary, choice });
@@ -146,7 +146,7 @@ export class Room {
       index: c.index, correctIndex: q.answer, explanation: q.explanation, results,
       scores: Object.fromEntries(this.players.map((p) => [p.uid, p.score])),
       secondary: c.secondary,
-      // 現在の順位（得点 → 平均解答時間）。最終の計算前から平均解答時間が順位に効く
+      // 平均解答時間は表示用（順位は得点だけで決まり、同点は同率）
       avgTimes: Object.fromEntries(this.players.map((p) => [p.uid, Math.round(mean(p.times) * 100) / 100])),
     });
 
@@ -164,17 +164,12 @@ export class Room {
 
   async finish() {
     for (const p of this.players) p.avgTime = mean(p.times);
+    // 順位は得点だけ（同点は同率: 1,1,3,4）。表示の並びだけ、同点なら平均解答時間が速い順
     const sorted = [...this.players].sort((a, b) => b.score - a.score || a.avgTime - b.avgTime);
-    sorted.forEach((p, i) => { p.place = i + 1; });
-
-    for (const p of this.players) {
-      const others = this.players.filter((o) => o !== p);
-      p.delta = calculateRateChange(
-        p.score, mean(others.map((o) => o.score)),
-        p.avgTime, mean(others.map((o) => o.avgTime)),
-        p.rating, mean(others.map((o) => o.rating)),
-      );
-    }
+    const places = assignPlaces(this.players.map((p) => p.score));
+    this.players.forEach((p, i) => { p.place = places[i]; p.tie = places.filter((x) => x === places[i]).length > 1; });
+    const deltas = computeDeltas(this.players.map((p) => ({ score: p.score, rating: p.rating })));
+    this.players.forEach((p, i) => { p.delta = deltas[i]; });
 
     try {
       for (const p of this.players) {
@@ -224,7 +219,7 @@ export class Room {
       total: this.questions.length,
       results: sorted.map((p) => ({
         uid: p.uid, isBot: p.isBot, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, score: p.score, secondaries: p.secondaries,
-        avgTime: Math.round(p.avgTime * 100) / 100, place: p.place, delta: p.delta,
+        avgTime: Math.round(p.avgTime * 100) / 100, place: p.place, tie: p.tie, delta: p.delta,
         rank: infoOf(p).label, rankKey: infoOf(p).key, rankSub: infoOf(p).sub,
         pt: p.profile?.pt ?? null, mr: p.profile?.mr ?? null,
       })),

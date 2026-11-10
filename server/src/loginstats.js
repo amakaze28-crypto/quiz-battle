@@ -6,25 +6,51 @@ import * as presence from './presence.js';
 const jst = (ms) => new Date(ms + 9 * 3600_000).toISOString();
 export const hourKey = (ms = Date.now()) => { const s = jst(ms); return `${s.slice(0, 10)}-${s.slice(11, 13)}`; };
 
+// 今の1時間ぶんはメモリに持ち、1分ごとにまとめて書き込む（読み取りは時間が変わったときの1回だけ）。
+// 過ぎた時間のぶんは変わらないので、一度読んだらメモリに置く。
 let chain = Promise.resolve();
 const queue = (fn) => { chain = chain.then(fn).catch(() => {}); return chain; };
 
-export const recordLogin = (uid) => queue(async () => {
+let cur = null; // { id, doc, dirty }
+const past = new Map(); // docId -> doc（終わった時間）
+
+async function flush() {
+  if (cur?.dirty) { cur.dirty = false; await store.colSet('loginstats', cur.id, cur.doc); }
+}
+async function current() {
   const id = hourKey();
-  const cur = (await store.colGet('loginstats', id)) || { uids: [], events: 0, peak: 0 };
-  const uids = cur.uids.includes(uid) ? cur.uids : [...cur.uids, uid].slice(-5000);
-  await store.colSet('loginstats', id, { uids, events: (cur.events || 0) + 1, peak: Math.max(cur.peak || 0, presence.count()) });
+  if (cur?.id === id) return cur;
+  await flush(); // 前の時間を書き切ってから切り替える
+  if (cur) past.set(cur.id, cur.doc);
+  cur = { id, doc: (await store.colGet('loginstats', id)) || { uids: [], events: 0, peak: 0 }, dirty: false };
+  cur.doc.uids ||= [];
+  return cur;
+}
+
+export const recordLogin = (uid) => queue(async () => {
+  const c = await current();
+  if (!c.doc.uids.includes(uid)) c.doc.uids = [...c.doc.uids, uid].slice(-5000);
+  c.doc.events = (c.doc.events || 0) + 1;
+  c.doc.peak = Math.max(c.doc.peak || 0, presence.count());
+  c.dirty = true;
 });
 
-// 1分ごとに同時接続数の最大値を更新
+// 1分ごとに同時接続数の最大値を更新し、たまった記録を書き込む
 export function startSampler() {
   setInterval(() => queue(async () => {
     const n = presence.count();
-    if (!n) return;
-    const id = hourKey();
-    const cur = await store.colGet('loginstats', id);
-    if (!cur || n > (cur.peak || 0)) await store.colSet('loginstats', id, { uids: cur?.uids || [], events: cur?.events || 0, peak: n });
+    if (n) { const c = await current(); if (n > (c.doc.peak || 0)) { c.doc.peak = n; c.dirty = true; } }
+    await flush();
   }), 60_000).unref?.();
+}
+
+async function hourDoc(id) {
+  if (id > hourKey()) return null; // まだ来ていない時間
+  if (cur?.id === id) return cur.doc;
+  if (past.has(id)) return past.get(id);
+  const d = await store.colGet('loginstats', id);
+  if (id < hourKey()) past.set(id, d); // 終わった時間は変わらない（なければnullのまま覚える）
+  return d;
 }
 
 export async function dayView(date) {
@@ -32,7 +58,7 @@ export async function dayView(date) {
   const hours = [];
   const all = new Set();
   for (let h = 0; h < 24; h++) {
-    const d = await store.colGet('loginstats', `${day}-${String(h).padStart(2, '0')}`);
+    const d = await hourDoc(`${day}-${String(h).padStart(2, '0')}`);
     (d?.uids || []).forEach((u) => all.add(u));
     hours.push({ h, logins: d?.uids?.length || 0, events: d?.events || 0, peak: d?.peak || 0 });
   }

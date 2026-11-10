@@ -92,3 +92,37 @@ export function MaintenanceCard({ user }) {
     </div>
   );
 }
+
+// Firestoreの読み取り/書き込み回数（このサーバーが起動してからの合計）。無料枠は1日あたり 読み取り5万・書き込み2万
+export function ReadStatsCard({ user }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState('');
+  const load = useCallback(async () => { try { setD(await adminApi(user, '/store-stats')); setErr(''); } catch (e) { setErr(e.message); } }, [user]);
+  useEffect(() => { load(); }, [load]);
+  if (err) return <div className="rounded-xl p-4 bg-[#171a20] text-red-300 text-sm lg:col-span-2">{err}</div>;
+  if (!d) return null;
+  const hours = Math.max(0.1, (Date.now() - d.since) / 3_600_000);
+  const perDay = (n) => Math.round((n / hours) * 24);
+  const LABEL = { users: 'ユーザー', 'users-list': 'ユーザー一覧', ranking: 'ランキング', items: 'アイテム', sets: 'セット', gachas: 'ガチャ', qbundles: '問題', questions: '旧形式の問題', cardlayouts: 'バナー位置', framefits: 'フレーム位置', mails: 'メール' };
+  const bar = (n, lim) => (
+    <div className="h-2 rounded bg-slate-700 overflow-hidden"><div className={`h-full ${n / lim > 0.8 ? 'bg-red-500' : n / lim > 0.5 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (n / lim) * 100)}%` }} /></div>
+  );
+  return (
+    <div className="rounded-xl p-4 bg-[#171a20] lg:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h2 className="font-bold">Firestore 使用量の目安</h2>
+        <button onClick={load} className={`${btn} bg-slate-700`}>更新</button>
+      </div>
+      <p className="text-xs text-slate-400 mb-3">サーバー起動から {hours < 1 ? `${Math.round(hours * 60)}分` : `${hours.toFixed(1)}時間`}の合計です（再起動で0に戻ります）。1日に換算した目安と、無料枠（読み取り 50,000 / 書き込み 20,000）の割合を出しています。{d.dev && ' ※今は開発モード（メモリ保存）の数値です。'}</p>
+      <div className="grid sm:grid-cols-2 gap-4 mb-3">
+        <div><p className="text-sm">読み取り <b>{d.reads.toLocaleString()}</b> 回　<span className="text-slate-400">（1日換算 約 {perDay(d.reads).toLocaleString()} / 50,000）</span></p>{bar(perDay(d.reads), 50000)}</div>
+        <div><p className="text-sm">書き込み <b>{d.writes.toLocaleString()}</b> 回　<span className="text-slate-400">（1日換算 約 {perDay(d.writes).toLocaleString()} / 20,000）</span></p>{bar(perDay(d.writes), 20000)}</div>
+      </div>
+      {d.by.length > 0 && (
+        <ul className="text-xs text-slate-300 grid sm:grid-cols-2 gap-x-6 gap-y-0.5">
+          {d.by.map((x) => <li key={`${x.kind}${x.name}`} className="flex justify-between"><span>{x.kind === 'reads' ? '読' : '書'}　{LABEL[x.name] || x.name}</span><span>{x.n.toLocaleString()}</span></li>)}
+        </ul>
+      )}
+    </div>
+  );
+}

@@ -17,7 +17,7 @@ export function seasonView() {
 // シーズン終了処理: 最終ランクのバッジを付与し、ランクをリセットして次のシーズンへ
 export async function rotateSeason() {
   const s = settings().season;
-  const users = await store.listUsers(100000);
+  const users = await store.listUsers(100000, { fresh: true });
   const top = users.filter((u) => u.isMaster && u.mr != null).sort((a, b) => b.mr - a.mr).slice(0, cfg.emperorCount);
   const place = new Map(top.map((u, i) => [u.uid, i + 1]));
   const now = Date.now();
@@ -33,6 +33,7 @@ export async function rotateSeason() {
     }
     await store.updateUser(u.uid, patch);
   }
+  store.dropUserLists();
   await saveSettings({ season: { ...s, number: s.number + 1, startAt: now } });
   await refreshEmperors();
   console.log(`[season] シーズン${s.number}を終了。バッジ付与 ${given}人 / ランクをリセット`);
