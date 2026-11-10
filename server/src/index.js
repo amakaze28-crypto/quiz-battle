@@ -11,6 +11,7 @@ import { mountApi } from './api.js';
 import { loadSettings } from './settings.js';
 import { profilePayload } from './profile.js';
 import * as presence from './presence.js';
+import * as loginstats from './loginstats.js';
 import * as missions from './missions.js';
 import { Matchmaker } from './matchmaker.js';
 import { Room } from './game.js';
@@ -50,6 +51,7 @@ const matchmaker = new Matchmaker((group) => {
   room.start();
 });
 
+loginstats.startSampler();
 mountAdmin(app, { io, matchmaker });
 mountApi(app);
 
@@ -91,7 +93,7 @@ io.on('connection', async (socket) => {
     const newDay = socket.data.profile.lastLoginDay !== today;
     await store.updateUser(uid, { lastLoginAt: Date.now(), ...(newDay ? { lastLoginDay: today, loginDays: (socket.data.profile.loginDays || 0) + 1 } : {}), missions: missions.touchLogin(socket.data.profile), mprog: missions.recordEvent(socket.data.profile, { login: 1 }) });
   }
-  if (!wasOnline) await badges.award(uid, { login: true });
+  if (!wasOnline) { loginstats.recordLogin(uid); await badges.award(uid, { login: true }); }
   const current = await store.getUser(uid);
   socket.emit('profile', profilePayload(current, isAdmin));
 

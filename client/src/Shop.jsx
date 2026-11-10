@@ -6,7 +6,7 @@ import { Avatar, Sand, Dot, RarityTag } from './Parts';
 import ItemPreview from './ItemPreview';
 import { RARITY } from './icons';
 
-const TABS = [['icon', 'アイコン', '👤', 255, 165], ['frame', 'フレーム', '▣', 445, 170], ['banner', 'バナー', '🔖', 640, 170], ['character', 'キャラ', '🧍', 835, 170]];
+const TABS = [['icon', 'アイコン', '👤', 255, 140], ['frame', 'アイコン\nフレーム', '▣', 405, 140], ['card', 'バナー', '🖼', 555, 140], ['banner', '対戦\nバナー', '🔖', 705, 140], ['character', 'キャラ', '🧍', 855, 140]];
 const gold = 'linear-gradient(180deg,#f1dc9a,#c9a24a)';
 const navy = 'linear-gradient(180deg,#13264d,#0a1630)';
 
@@ -50,8 +50,8 @@ export default function Shop({ user, profile, call, go, summary }) {
       {TABS.map(([k, label, ic, y, h]) => (
         <Box key={k} x={6} y={y} w={158} h={h}>
           <button onClick={() => setTab(k)} className="w-full h-full rounded-lg flex flex-col items-center justify-center font-bold"
-            style={{ background: tab === k ? gold : navy, color: tab === k ? '#2b1d05' : '#e5e7eb', border: '2px solid #c9a24a', fontSize: fs(23) }}>
-            <span style={{ fontSize: fs(54) }}>{ic}</span>{label}
+            style={{ background: tab === k ? gold : navy, color: tab === k ? '#2b1d05' : '#e5e7eb', border: '2px solid #c9a24a', fontSize: fs(22), whiteSpace: 'pre-line', lineHeight: 1.15 }}>
+            <span style={{ fontSize: fs(48) }}>{ic}</span>{label}
           </button>
         </Box>
       ))}
@@ -60,7 +60,7 @@ export default function Shop({ user, profile, call, go, summary }) {
       <Box x={187} y={278} w={821} h={1057} className="rounded-xl overflow-hidden flex flex-col"
         style={{ background: 'linear-gradient(180deg,#0f2147,#0a1530)', border: '3px solid #c9a24a' }}>
         <div className="flex items-center justify-between px-[2.5cqw] py-[1.2cqw] text-[#f3e3b0] font-bold border-b border-[#c9a24a]/50" style={{ fontSize: fs(30) }}>
-          <span>{TABS.find((t) => t[0] === tab)[1]}</span>
+          <span>{TABS.find((t) => t[0] === tab)[1].replace('\n', '')}</span>
           <span style={{ fontSize: fs(20), color: '#9fb2d4' }}>{items.length}点</span>
         </div>
         {msg && <p className="px-[2.5cqw] py-[0.8cqw] text-red-300" style={{ fontSize: fs(20) }}>{msg}</p>}
@@ -82,8 +82,8 @@ export default function Shop({ user, profile, call, go, summary }) {
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-[1.2cqw]">
-              {tab === 'frame' && equipped !== 'none' && (
-                <button onClick={() => equip('frame', 'none')} className="rounded-lg bg-slate-700 text-white font-bold p-[1cqw]" style={{ fontSize: fs(20) }}>フレームを外す</button>
+              {(tab === 'frame' || tab === 'card') && equipped !== 'none' && (
+                <button onClick={() => equip(tab, 'none')} className="rounded-lg bg-slate-700 text-white font-bold p-[1cqw]" style={{ fontSize: fs(20) }}>{tab === 'card' ? '標準に戻す' : 'フレームを外す'}</button>
               )}
               {items.map((i) => (
                 <div key={i.id} className="rounded-lg bg-[#e9e4d6] p-[1cqw] flex flex-col items-center" style={{ border: `3px solid ${RARITY[i.rarity].color}` }}>

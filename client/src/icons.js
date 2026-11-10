@@ -14,7 +14,7 @@ export const RARITY = {
   legendary: { label: 'レジェンダリー', color: '#fbbf24' },
 };
 export const RARITIES = Object.keys(RARITY);
-export const TYPE_LABEL = { icon: 'アイコン', frame: 'アイコンフレーム', card: 'カードフレーム', banner: 'バナー', character: 'キャラ' };
+export const TYPE_LABEL = { icon: 'アイコン', frame: 'アイコンフレーム', card: 'バナー', banner: '対戦バナー', character: 'キャラ' };
 
 export function ago(ts) {
   if (!ts) return 'なし';

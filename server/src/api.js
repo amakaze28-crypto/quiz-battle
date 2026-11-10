@@ -9,6 +9,7 @@ import { rankInfo, ratingValue, TIERS, MASTER_START } from './rank.js';
 import { cfg } from './config.js';
 import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
+import { cardLayouts } from './cardlayouts.js';
 import { listGachas, poolFor, isActive, costOf, NORMAL_ID, readBanner } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
 import * as badges from './badges.js';
@@ -480,6 +481,7 @@ export function mountApi(app) {
       res.set('Content-Type', b.mime).set('Cache-Control', 'public, max-age=31536000, immutable').send(b.buf);
     } catch { res.status(500).end(); }
   });
+  app.get('/card-layouts', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json({ layouts: await cardLayouts() }); } catch { res.status(500).end(); } });
   app.get('/sounds', async (_req, res) => { try { res.set('Cache-Control', 'no-cache').json(await listSounds()); } catch { res.status(500).end(); } });
   app.get('/sound/:slot', async (req, res) => {
     try {

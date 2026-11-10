@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminApi, SERVER_URL } from './api';
 import { Avatar, Coin, Sand, RarityTag } from './Parts';
 import { RARITY, RARITIES, TYPE_LABEL } from './icons';
+import { ItemViewModal } from './AdminCards';
+import { LoginStats } from './AdminStats';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
@@ -174,6 +176,7 @@ export function ItemsAdmin({ user }) {
   const [f, setF] = useState(blank);
   const [filter, setFilter] = useState('all');
   const [msg, setMsg] = useState(null);
+  const [view, setView] = useState(null);
 
   const pick = async (e) => { const file = e.target.files?.[0]; if (file) setF({ ...f, image: await fileToImage(file, f.type) }); };
   const add = async () => {
@@ -182,9 +185,9 @@ export function ItemsAdmin({ user }) {
   };
   const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { alert(e.message); } };
   const seed = async () => {
-    if (!confirm('同梱のアイコンフレーム120点・カードフレーム90点を、ガチャ（恒常）に登録します。よろしいですか？（登録済みのものはスキップ）')) return;
+    if (!confirm('同梱のアイコンフレーム120点・カードフレーム90点を、ガチャ（恒常）に登録します。よろしいですか？（登録済みのものは画像だけ更新）')) return;
     setMsg({ ok: true, text: '登録中…' });
-    try { const d = await adminApi(user, '/seed-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: `登録 ${d.added}点 / 既存 ${d.skipped}点` }); load(); }
+    try { const d = await adminApi(user, '/seed-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: `新規 ${d.added}点 / 既存の画像を更新 ${d.skipped}点` }); load(); }
     catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const shown = data?.filter((i) => filter === 'all' || i.type === filter);
@@ -208,7 +211,7 @@ export function ItemsAdmin({ user }) {
         </div>
         <p className="text-xs text-slate-400">
           {f.type === 'icon' && '中央を正方形に切り出して256pxに縮小します。'}
-          {f.type === 'card' && 'プレイヤーカード全体の枠（縦長の台紙画像）です。同梱の4種と同じ配置で表示されます。'}
+          {f.type === 'card' && 'バナー（プレイヤーカード全体の台紙・縦長の画像）です。追加後、一覧でタップすると見た目を確認して、アイコン等の位置を調整できます。'}
           {f.type === 'frame' && 'アイコンに重ねる枠です。中央が透明な正方形のPNG／WebPを選んでください（透過は保たれます）。'}
           {f.type === 'character' && '全身の立ち絵（背景透過のPNG/WebP推奨・縦長）。プレイヤーカードに表示されます。'}
           {f.type === 'banner' && '横長(4:1)の画像がおすすめです。800×200に整えます。'}
@@ -239,11 +242,13 @@ export function ItemsAdmin({ user }) {
       <ul className="space-y-2">
         {shown?.map((i) => (
           <li key={i.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
-            {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : (i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
+            <button onClick={() => setView(i)} className="flex items-center gap-3 min-w-0 flex-1 text-left" title="タップで見た目を確認">
+  {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : (i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
             <div className="min-w-0 flex-1">
-              <p className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></p>
+              <div className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></div>
               <Sand n={i.price} size={18} className="text-amber-300 text-sm" />
             </div>
+            </button>
             <select value={i.rarity} onChange={(e) => patch(i, { rarity: e.target.value })} className="rounded bg-[#0e1013] border border-white/10 px-2 py-1 text-sm">
               {RARITIES.map((x) => <option key={x} value={x}>{RARITY[x].label}</option>)}
             </select>
@@ -255,6 +260,7 @@ export function ItemsAdmin({ user }) {
         ))}
         {shown?.length === 0 && <li className="text-slate-400 text-center py-6">アイテムがありません</li>}
       </ul>
+      {view && <ItemViewModal user={user} item={view} items={data} onClose={() => setView(null)} />}
     </div>
   );
 }
@@ -284,6 +290,7 @@ export function SettingsAdmin({ user }) {
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <LoginStats user={user} />
       <div className={card}>
         <h2 className="font-bold mb-1">ミッション報酬（コイン）</h2>
         {[['login', 'ログインする'], ['play', '5マッチプレイする'], ['win', '3勝する']].map(([k, label]) => (

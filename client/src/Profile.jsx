@@ -79,6 +79,7 @@ function CardEditor({ user, profile, call }) {
   const chars = items.filter((i) => i.type === 'character');
   const cards = items.filter((i) => i.type === 'card');
   const frames = items.filter((i) => i.type === 'frame');
+  const strips = items.filter((i) => i.type === 'banner');
   return (
     <Panel className="p-3 mt-3 text-left">
       <h3 className="font-bold mb-2">カードの設定</h3>
@@ -92,11 +93,20 @@ function CardEditor({ user, profile, call }) {
         <button onClick={() => equip('frame', 'none')} className={`${cell} text-[10px] ${(profile.frameId || 'none') === 'none' ? sel : ''}`}>なし</button>
         {frames.map((i) => <button key={i.id} onClick={() => equip('frame', i.id)} className={`${cell} ${profile.frameId === i.id ? sel : ''}`}><Avatar iconId={profile.iconId} frameId={i.id} size={44} /></button>)}
       </div>
-      <p className="text-xs text-slate-300 mb-1">カードフレーム（{cards.length}）</p>
+      <p className="text-xs text-slate-300 mb-1">バナー（プレイヤーカードの台紙・{cards.length}）</p>
       <div className="grid grid-cols-4 gap-2 mb-3 max-h-72 overflow-y-auto">
         <button onClick={() => equip('card', 'none')} className={`${cell} text-[10px] min-h-[60px] ${(profile.cardId || 'none') === 'none' ? sel : ''}`}>標準</button>
         {cards.map((i) => <button key={i.id} onClick={() => equip('card', i.id)} className={`${cell} ${profile.cardId === i.id ? sel : ''}`}><ItemPreview item={i} size="40px" /></button>)}
       </div>
+      {strips.length > 0 && (
+        <>
+          <p className="text-xs text-slate-300 mb-1">対戦バナー（マッチング画面の帯）</p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button onClick={() => equip('banner', 'none')} className={`${cell} text-[10px] min-h-[40px] ${(profile.bannerId || 'none') === 'none' ? sel : ''}`}>なし</button>
+            {strips.map((i) => <button key={i.id} onClick={() => equip('banner', i.id)} className={`${cell} ${profile.bannerId === i.id ? sel : ''}`}><ItemPreview item={i} /></button>)}
+          </div>
+        </>
+      )}
       <p className="text-xs text-slate-300 mb-1">キャラクター（アイコンとは別）</p>
       <div className="grid grid-cols-4 gap-2 mb-3">
         {chars.map((i) => <button key={i.id} onClick={() => equip('character', i.id)} className={`${cell} ${profile.charId === i.id ? sel : ''}`}><ItemPreview item={i} size="48px" /></button>)}

@@ -9,6 +9,8 @@ import { listGachas, normalizeGacha, NORMAL_ID, okBannerData, putBanner, clearBa
 import * as sounds from './sounds.js';
 import * as badges from './badges.js';
 import { rotateSeason } from './seasons.js';
+import * as loginstats from './loginstats.js';
+import { cardLayouts } from './cardlayouts.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -179,6 +181,25 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({ ok: true });
   }));
 
+  // ---- ログイン数（現在のオンライン数と、時間別のグラフ） ----
+  r.get('/loginstats', wrap(async (req, res) => res.json(await loginstats.dayView(String(req.query.date || '')))));
+
+  // ---- バナー(カードフレーム)の配置。id ごとに上書き保存 ----
+  const LAYOUT_KEYS = ['cx', 'cy', 'd', 'p1', 'p2', 'pl', 'panel', 'ph', 'by'];
+  r.get('/card-layouts', wrap(async (_req, res) => res.json({ layouts: await cardLayouts() })));
+  r.put('/card-layouts', wrap(async (req, res) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(String).slice(0, 200) : [];
+    const L = {};
+    for (const k of LAYOUT_KEYS) {
+      const v = Number(req.body.layout?.[k]);
+      if (!Number.isFinite(v) || v < 0 || v > 1.2) return res.status(400).json({ error: '値が不正です' });
+      L[k] = Math.round(v * 10000) / 10000;
+    }
+    for (const id of ids) await store.colSet('cardlayouts', id, L);
+    res.json({ ok: true, count: ids.length });
+  }));
+  r.delete('/card-layouts/:id', wrap(async (req, res) => { await store.colDel('cardlayouts', req.params.id); res.json({ ok: true }); }));
+
   // ---- コイン・砂の付与（マイナスで減算） ----
   r.post('/players/:uid/coins', wrap(async (req, res) => {
     const u = await store.getUser(req.params.uid);
@@ -242,8 +263,8 @@ export function mountAdmin(app, { io, matchmaker }) {
     const manifest = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'manifest.json'), 'utf8'));
     let added = 0; let skipped = 0;
     for (const m of manifest) {
-      if (await store.colGet('items', m.id)) { skipped++; continue; }
       const b64 = fs.readFileSync(path.join(SEED_DIR, m.file)).toString('base64');
+      if (await store.colGet('items', m.id)) { await store.colSet('items', m.id, { image: `data:image/webp;base64,${b64}` }); skipped++; continue; } // 既存は画像だけ更新（名前・レア度などの編集は保持）
       await store.colSet('items', m.id, { name: m.name, type: m.type, rarity: m.rarity, price: 0, image: `data:image/webp;base64,${b64}`, onShop: false, inGacha: true, createdAt: Date.now() });
       added++;
     }

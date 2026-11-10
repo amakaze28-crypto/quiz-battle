@@ -6,4 +6,5 @@ export const remove = (uid) => {
   if (n <= 0) online.delete(uid); else online.set(uid, n);
   return n;
 };
+export const count = () => online.size;
 export const isOnline = (uid) => online.has(uid);
