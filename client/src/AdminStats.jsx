@@ -103,7 +103,7 @@ export function ReadStatsCard({ user }) {
   if (!d) return null;
   const hours = Math.max(0.1, (Date.now() - d.since) / 3_600_000);
   const perDay = (n) => Math.round((n / hours) * 24);
-  const LABEL = { users: 'ユーザー', 'users-list': 'ユーザー一覧', ranking: 'ランキング', items: 'アイテム', sets: 'セット', gachas: 'ガチャ', qbundles: '問題', questions: '旧形式の問題', cardlayouts: 'バナー位置', framefits: 'フレーム位置', mails: 'メール' };
+  const LABEL = { users: 'ユーザー', 'users-list': 'ユーザー一覧', ranking: 'ランキング', items: 'アイテム', itembundles: 'アイテム（文字情報）', itemimages: 'アイテム画像', sets: 'セット', gachas: 'ガチャ', qbundles: '問題', questions: '旧形式の問題', cardlayouts: 'バナー位置', framefits: 'フレーム位置', mails: 'メール' };
   const bar = (n, lim) => (
     <div className="h-2 rounded bg-slate-700 overflow-hidden"><div className={`h-full ${n / lim > 0.8 ? 'bg-red-500' : n / lim > 0.5 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (n / lim) * 100)}%` }} /></div>
   );

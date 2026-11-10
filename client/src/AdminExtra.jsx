@@ -270,7 +270,7 @@ export function ItemsAdmin({ user }) {
         ))}
         {shown?.length === 0 && <li className="text-slate-400 text-center py-6">アイテムがありません</li>}
       </ul>
-      {view && <ItemViewModal key={`${view.id}-${viewEdit}`} user={user} item={view} items={data} startEdit={viewEdit} onClose={() => setView(null)} />}
+      {view && <ItemViewModal key={`${view.id}-${viewEdit}`} user={user} item={view} items={data} startEdit={viewEdit} onClose={() => setView(null)} onDeleted={load} />}
     </div>
   );
 }

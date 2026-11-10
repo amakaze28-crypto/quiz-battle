@@ -307,6 +307,16 @@ export function mountAdmin(app, { io, matchmaker }) {
     res.json({ ok: true });
   }));
 
+  // アイテムの削除（画像・位置調整も消す）。持っているユーザーの持ち物からは消さず、装備中なら初期の見た目に戻る
+  r.delete('/items/:id', wrap(async (req, res) => {
+    const id = req.params.id;
+    if (!(await store.colGet('items', id))) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    await store.colDel('items', id);
+    if (await store.colGet('cardlayouts', id)) await store.colDel('cardlayouts', id);
+    if (await store.colGet('framefits', id)) await store.colDel('framefits', id);
+    res.json({ ok: true });
+  }));
+
   // ---- セット（レジェンダリーで出る、キャラ・アイコンなどの一式） ----
   r.get('/sets', wrap(async (_req, res) => {
     res.json({ sets: (await store.colList('sets')).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) });

@@ -82,9 +82,13 @@ export function DraftFrameEditor({ user, image, F, setF }) {
 }
 
 // ---- 一覧のタップで開く確認・調整 ----
-export function ItemViewModal({ user, item, items, startEdit = false, onClose }) {
+export function ItemViewModal({ user, item, items, startEdit = false, onClose, onDeleted }) {
   const me = useSampleProfile(user);
   const [edit, setEdit] = useState(startEdit);
+  const remove = async () => {
+    if (!window.confirm(`「${item.name}」を削除しますか？\n\n画像と位置調整も消えます。すでに持っているユーザーは、装備中なら初期の見た目に戻ります。元に戻せません。`)) return;
+    try { await adminApi(user, `/items/${item.id}`, { method: 'DELETE' }); await loadCardLayouts(true); onDeleted?.(); onClose(); } catch (e) { alert(e.message); }
+  };
   const overrides = useCardLayouts();
   const same = (items || []).filter((i) => i.type === 'card' && profileKeyOf(i.id) === profileKeyOf(item.id));
   const adjustable = item.type === 'card' || item.type === 'frame';
@@ -111,6 +115,7 @@ export function ItemViewModal({ user, item, items, startEdit = false, onClose })
             <button onClick={() => setEdit(true)} className={`${btn} bg-sky-600 font-bold w-full mt-3`}>{item.type === 'card' ? 'アイコンなどの位置を調整する' : 'フレームの位置・大きさを調整する'}</button>
           </>
         )}
+        {!edit && <button onClick={remove} className={`${btn} bg-red-900/70 text-red-200 w-full mt-3`}>このアイテムを削除</button>}
       </div>
     </div>
   );

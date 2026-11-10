@@ -20,7 +20,7 @@ async function bandAgg() {
     bandLoading = (async () => {
       const agg = {};
       try {
-        for (const u of await store.listUsers(5000)) {
+        for (const u of await store.listUsers(100)) {
           if (u.isMaster) continue;
           const e = agg[TIERS[tierIndex(u.pt)].key] ||= { q: 0, correct: 0, ans: 0, time: 0 };
           e.q += u.statQ || 0; e.correct += u.statCorrect || 0; e.ans += u.statAns || 0; e.time += u.statTime || 0;

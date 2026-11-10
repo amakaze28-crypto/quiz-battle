@@ -15,5 +15,5 @@ export async function refreshEmperors() {
 
 export function startEmperorRefresh() {
   refreshEmperors();
-  setInterval(refreshEmperors, 60_000).unref();
+  setInterval(refreshEmperors, 60 * 60_000).unref(); // 1時間ごと
 }

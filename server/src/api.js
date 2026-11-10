@@ -497,8 +497,8 @@ export function mountApi(app) {
   // アイテム画像（アイコン・フレーム・バナー）の配信（認証不要・不変URL）
   app.get('/item/:id', async (req, res) => {
     try {
-      const it = await store.colGet('items', req.params.id);
-      const m = it?.image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+      const image = await store.getItemImage(req.params.id);
+      const m = image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
       if (!m) return res.status(404).end();
       res.set('Content-Type', m[1]).set('Cache-Control', 'public, max-age=31536000, immutable').send(Buffer.from(m[2], 'base64'));
     } catch { res.status(500).end(); }

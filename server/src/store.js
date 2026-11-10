@@ -114,8 +114,8 @@ setInterval(() => {
 // 管理画面のプレイヤー一覧・bot統計用の一覧キャッシュ（120秒）。書き込みは中身にも反映する
 const LIST_TTL = 120_000;
 const lcache = new Map(); // limit -> { at, list, byUid }
-// ランキング(マスター上位)は、順位に関わる変更があったときだけ、最短5分おきに読み直す
-const TOP_MIN_INTERVAL = 300_000;
+// ランキング(マスター上位)・エンペラーは、順位に関わる変更があったときだけ、最短55分おきに読み直す（実質1時間更新）
+const TOP_MIN_INTERVAL = 55 * 60_000; // 1時間ごとの更新に合わせて、少し短めにしておく
 const TOP_MIN_SIZE = 100;
 let topC = { at: 0, list: null, size: 0 };
 let topDirty = true;
@@ -133,9 +133,17 @@ export async function findUserByFriendCode(code) {
   return u ? norm(u) : null;
 }
 
+// 削除されたアイテムを装備したままのユーザーは、初期の見た目に戻す（画像が出なくなるのを防ぐ）
+const EQUIP = [['iconId', ['default', 'default2'], 'default'], ['frameId', ['none'], 'none'], ['cardId', ['none'], 'none'], ['bannerId', ['none'], 'none'], ['charId', ['char-m', 'char-f'], 'char-m']];
+async function equipFixed(u) {
+  const m = await iLoad();
+  for (const [k, builtin, dflt] of EQUIP) if (u[k] && !builtin.includes(u[k]) && !m.where.has(u[k])) u[k] = dflt;
+  return u;
+}
+
 export async function getUser(uid) {
   const hit = ucGet(uid);
-  if (hit) return clone(norm(hit));
+  if (hit) return equipFixed(clone(norm(hit)));
   let raw = null;
   if (useFirebase) {
     const snap = await db.collection('users').doc(uid).get();
@@ -146,7 +154,7 @@ export async function getUser(uid) {
   note('reads', 'users');
   if (!raw) return null;
   ucPut(uid, raw);
-  return clone(norm(ucache.get(uid).doc));
+  return equipFixed(clone(norm(ucache.get(uid).doc)));
 }
 
 export async function getOrCreateUser(uid, name, photoURL, email = '') {
@@ -372,7 +380,7 @@ async function rawDel(name, id) {
 
 // ほとんど変わらないコレクションは、最初に1回だけ全部読んでメモリに置き、
 // 書き込みのときだけ Firestore とメモリの両方を更新する（読み取りは再起動のときだけ）
-const CACHED = new Set(['items', 'sets', 'gachas', 'cardlayouts', 'framefits', 'badgedefs', 'mails', 'sounds']);
+const CACHED = new Set(['sets', 'gachas', 'cardlayouts', 'framefits', 'badgedefs', 'mails', 'sounds']);
 const ccache = new Map(); // name -> Map(id -> doc)
 const cloading = new Map(); // name -> Promise<Map>
 const cstale = new Set(); // 読み込み中に書き込みがあった → 読み込み後に捨てる
@@ -396,25 +404,116 @@ const ccTouch = (name, fn) => {
   else if (cloading.has(name)) cstale.add(name);
 };
 
+// ---------- アイテム ----------
+// 文字の情報（名前・価格・レア度など）は500件ずつ1ドキュメント(itembundles)にまとめ、全件をメモリに持つ。
+// 画像は大きいので1枚ずつ別ドキュメント(itemimages)に置き、見られたときに読んで、メモリに（上限つきで）覚える。
+//  - 起動時の読み取りは「ドキュメント数」だけ（アイテム1,000個でも2回）
+//  - 画像の読み取りは、再起動後に最初に表示されたときの1回だけ
+// ※旧形式の items コレクション（画像つき）は使いません
+const IB = 'itembundles';
+const II = 'itemimages';
+const I_PER = 500;
+const IMG_CACHE_CHARS = 40_000_000; // 画像のメモリ上限（文字数≒バイト数）
+let imem = null; // { bundles: Map(bid -> meta[]), where: Map(id -> bid) }
+let iloading = null;
+let ichain = Promise.resolve();
+const ilock = (fn) => { const p = ichain.then(fn); ichain = p.catch(() => {}); return p; };
+const imgCache = new Map(); let imgChars = 0;
+const imgPut = (id, v) => {
+  imgDrop(id); imgCache.set(id, v); imgChars += v.length;
+  while (imgChars > IMG_CACHE_CHARS && imgCache.size > 1) { const k = imgCache.keys().next().value; imgDrop(k); }
+};
+const imgDrop = (id) => { if (imgCache.has(id)) { imgChars -= imgCache.get(id).length; imgCache.delete(id); } };
+
+async function iLoad() {
+  if (imem) return imem;
+  if (!iloading) {
+    iloading = (async () => {
+      const m = { bundles: new Map(), where: new Map() };
+      for (const r of (await rawList(IB)).sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        const items = Array.isArray(r.items) ? r.items : [];
+        m.bundles.set(r.id, items);
+        items.forEach((it) => m.where.set(it.id, r.id));
+      }
+      imem = m;
+      return m;
+    })().catch((e) => { iloading = null; throw e; });
+  }
+  return iloading;
+}
+async function iWrite(m, bid) {
+  const items = m.bundles.get(bid) || [];
+  if (!items.length) { m.bundles.delete(bid); await rawDel(IB, bid); return; }
+  await rawSet(IB, bid, { items, n: items.length });
+}
+const metaOf = (m, id) => { const bid = m.where.get(id); return bid ? m.bundles.get(bid).find((x) => x.id === id) : null; };
+
+export async function getItemImage(id) {
+  if (imgCache.has(id)) { const v = imgCache.get(id); imgCache.delete(id); imgCache.set(id, v); return v; }
+  await iLoad();
+  const d = await rawGet(II, id);
+  if (!d?.image) return null;
+  imgPut(id, d.image);
+  return d.image;
+}
+
+const itemAdd = (data) => ilock(async () => {
+  const m = await iLoad();
+  const { image, ...meta } = data;
+  const id = crypto.randomBytes(10).toString('hex');
+  if (image) { await rawSet(II, id, { image }); imgPut(id, image); }
+  let bid = [...m.bundles.keys()].sort().pop();
+  if (!bid || m.bundles.get(bid).length >= I_PER) { bid = `b${String(bid ? Number(bid.slice(1)) + 1 : 1).padStart(4, '0')}`; m.bundles.set(bid, []); }
+  m.bundles.get(bid).push({ id, ...meta });
+  m.where.set(id, bid);
+  await iWrite(m, bid);
+  return id;
+});
+const itemSet = (id, data) => ilock(async () => {
+  const m = await iLoad();
+  const { image, ...meta } = data;
+  if (image) { await rawSet(II, id, { image }); imgPut(id, image); }
+  if (Object.keys(meta).length) {
+    const bid = m.where.get(id);
+    if (!bid) return;
+    const items = m.bundles.get(bid);
+    const i = items.findIndex((x) => x.id === id);
+    items[i] = { ...mergeInto(items[i], clone(meta)), id };
+    await iWrite(m, bid);
+  }
+});
+const itemDel = (id) => ilock(async () => {
+  const m = await iLoad();
+  const bid = m.where.get(id);
+  if (bid) { m.where.delete(id); m.bundles.set(bid, m.bundles.get(bid).filter((x) => x.id !== id)); await iWrite(m, bid); }
+  imgDrop(id);
+  await rawDel(II, id);
+});
+
 export async function colList(name) {
+  if (name === 'items') return [...(await iLoad()).bundles.values()].flat().map((x) => ({ ...x }));
   if (!CACHED.has(name)) return rawList(name);
   return [...(await ccLoad(name)).values()].map((x) => ({ ...x }));
 }
 export async function colGet(name, id) {
+  if (name === 'items') { const v = metaOf(await iLoad(), id); return v ? { ...v } : null; }
   if (!CACHED.has(name)) return rawGet(name, id);
   const v = (await ccLoad(name)).get(id);
   return v ? { ...v } : null;
 }
 export async function colAdd(name, data) {
+  if (name === 'items') return itemAdd(data);
   const id = await rawAdd(name, data);
   if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { id, ...clone(data) }));
   return id;
 }
 export async function colSet(name, id, data) {
+  if (name === 'items') return itemSet(id, data);
   await rawSet(name, id, data);
   if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { ...mergeInto(m.get(id) || {}, clone(data)), id }));
 }
 export async function colDel(name, id) {
+  if (name === 'items') return itemDel(id);
   await rawDel(name, id);
   if (CACHED.has(name)) ccTouch(name, (m) => m.delete(id));
 }
