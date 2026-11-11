@@ -31,9 +31,6 @@ export default function Home({ g, summary, go, onLogout, user }) {
         <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
         {/* ランクの詳細 */}
         <Hot x={262} y={58} w={474} h={178} label="ランクの詳細" onClick={() => setRankOpen(true)} />
-        {profile?.streak >= 2 && (
-          <Box x={262} y={246} w={300} h={50} className="rounded-full flex items-center justify-center pointer-events-none" style={{ fontSize: fs(28), fontWeight: 900, color: '#fff4d2', background: 'linear-gradient(90deg,#c2410c,#f59e0b)', border: `${cq(2)} solid #fde68a`, textShadow: '0 2px 4px #000' }}>🔥 {profile.streak}連勝中！</Box>
-        )}
         {conn !== 'online' && (
           <Box x={262} y={304} w={488} h={60} className="rounded-lg bg-black/60 px-3 flex items-center" style={{ fontSize: fs(21), color: '#fcd34d' }}>
             {conn === 'error' ? `接続エラー: ${error}` : <LoopText />}
@@ -47,6 +44,13 @@ export default function Home({ g, summary, go, onLogout, user }) {
             <img src="/ui/rankmatch.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 6px 10px rgba(0,0,0,.45))' }} />
           </button>
         </Box>
+        {/* 連勝中（2連勝から）。ランクマッチの左上に、少し重ねて置く */}
+        {profile?.streak >= 2 && (
+          <Box x={288} y={916} w={300} h={86} className="pointer-events-none">
+            <img src="/ui/streak.png" alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.5))' }} />
+            <div className="absolute inset-0 flex items-center justify-center" style={{ paddingLeft: '12%', paddingRight: '8%', fontSize: fs(30), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 4px #0a1a3a, 0 0 8px #0a1a3a', whiteSpace: 'nowrap' }}>🔥 {profile.streak}連勝中</div>
+          </Box>
+        )}
         <Box x={70} y={922} w={206} h={55}>
           <button onClick={() => go('ranking')} aria-label="ランキング" className="w-full h-full active:scale-95 transition-transform">
             <img src="/ui/ranking.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.55))' }} />
