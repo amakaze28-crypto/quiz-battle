@@ -44,8 +44,22 @@ function ItemPicker({ items, value, onChange, filter }) {
 
 // ---------- ガチャの確率設定（共通 / ガチャ専用 で同じ画面を使う） ----------
 // ① アイテムと砂の比率 ② レア度ごとの確率 ③ 砂の量・被りの砂、を別々に設定する
+// サーバーから来た確率設定が古い形式・欠けがあっても画面が落ちないように、足りない項目を既定値で補う
+const RATE_DEFAULTS = {
+  sandPercent: 30,
+  rarityPercent: { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 },
+  sandAmounts: { common: 20, uncommon: 50, rare: 100, epic: 300, legendary: 1000 },
+  dupSand: { common: 10, uncommon: 50, rare: 100, epic: 500, legendary: 1000 },
+};
+const normRates = (v) => {
+  const src = v && typeof v === 'object' ? v : {};
+  const per = (k) => ({ ...RATE_DEFAULTS[k], ...(src[k] && typeof src[k] === 'object' ? src[k] : {}) });
+  const oldSand = src.typeWeights && Number(src.typeWeights.item) + Number(src.typeWeights.sand) > 0 ? (Number(src.typeWeights.sand) / (Number(src.typeWeights.item) + Number(src.typeWeights.sand))) * 100 : undefined;
+  return { ...src, sandPercent: Number.isFinite(Number(src.sandPercent)) ? Number(src.sandPercent) : (oldSand ?? RATE_DEFAULTS.sandPercent), rarityPercent: { ...RATE_DEFAULTS.rarityPercent, ...(src.itemRarityWeights || {}), ...(src.rarityPercent || {}) }, sandAmounts: per('sandAmounts'), dupSand: per('dupSand') };
+};
 const pctInput = 'w-20 rounded-lg bg-[#0e1013] border border-white/10 px-2 py-1 text-right';
-function GachaRatesEditor({ v, onChange }) {
+function GachaRatesEditor({ v: raw, onChange }) {
+  const v = normRates(raw);
   const set = (p) => onChange({ ...v, ...p });
   const total = Math.round(RARITIES.reduce((t, x) => t + Number(v.rarityPercent[x] || 0), 0) * 10) / 10;
   const fix = () => { // 合計100%になるように按分し直す（端数は一番大きいレア度に寄せる）
@@ -164,7 +178,7 @@ function GachaEditor({ user, g, items, sets, common, onSaved, onCancel }) {
         <input type="number" min={0} className={`${input} w-28`} value={f.cost ?? ''} onChange={(e) => setF({ ...f, cost: e.target.value === '' ? null : Number(e.target.value) })} />
       </Field>
       <div className="rounded-lg bg-black/20 p-3">
-        <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={!!f.rates} onChange={(e) => setF({ ...f, rates: e.target.checked ? structuredClone((({ cost, ...r }) => r)(common)) : null })} />このガチャ専用の確率にする（オフ＝共通の確率設定を使う）</label>
+        <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={!!f.rates} onChange={(e) => setF({ ...f, rates: e.target.checked ? structuredClone((({ cost, ...r }) => r)(normRates(common))) : null })} />このガチャ専用の確率にする（オフ＝共通の確率設定を使う）</label>
         {f.rates && <div className="mt-3"><GachaRatesEditor v={f.rates} onChange={(r) => setF({ ...f, rates: r })} /></div>}
       </div>
       {!normal && (
@@ -239,7 +253,7 @@ export function GachasAdmin({ user }) {
   const load = useCallback(async () => {
     try {
       const [a, b, c, d] = await Promise.all([adminApi(user, '/gachas'), adminApi(user, '/sets'), adminApi(user, '/items'), adminApi(user, '/settings')]);
-      setCommon(d.gacha);
+      setCommon(normRates(d.gacha));
       setGachas(a.gachas); setSets(b.sets); setItems(c.items); setErr('');
     } catch (e) { setErr(e.message); }
   }, [user]);

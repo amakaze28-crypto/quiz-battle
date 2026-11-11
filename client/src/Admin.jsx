@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Component, useCallback, useEffect, useMemo, useState } from 'react';
 import { adminApi } from './api';
 import RankBadge from './RankBadge';
 import { GachasAdmin, SoundsAdmin } from './AdminGacha';
@@ -7,6 +7,17 @@ import { Reports, QuestionReports, Delivery, ItemsAdmin, MissionsAdmin, Settings
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
 const btn = 'px-3 py-1.5 rounded-lg text-sm';
+
+// タブの中でエラーが起きても、画面全体が真っ白にならないようにする（他のタブには移れる）
+class TabBoundary extends Component {
+  state = { err: null };
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err) { console.error('[admin tab]', err); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return <div className="rounded-xl bg-red-950/50 border border-red-500/40 p-4 text-sm"><p className="font-bold text-red-300 mb-1">この画面でエラーが起きました</p><p className="text-slate-300 break-all">{String(this.state.err?.message || this.state.err)}</p></div>;
+  }
+}
 
 export default function Admin({ user }) {
   const [tab, setTab] = useState('questions');
@@ -25,6 +36,7 @@ export default function Admin({ user }) {
           <button key={k} onClick={() => setTab(k)} className={`${btn} ${tab === k ? 'bg-sky-600 font-bold' : 'bg-[#171a20]'}`}>{label}</button>
         ))}
       </div>
+      <TabBoundary key={tab}>
       {tab === 'questions' && <Questions user={user} />}
       {tab === 'players' && <Players user={user} />}
       {tab === 'reports' && <Reports user={user} onCount={setUnresolved} />}
@@ -37,6 +49,7 @@ export default function Admin({ user }) {
       {tab === 'season' && <SeasonAdmin user={user} />}
       {tab === 'missions' && <MissionsAdmin user={user} />}
       {tab === 'settings' && <SettingsAdmin user={user} />}
+      </TabBoundary>
     </div>
   );
 }
