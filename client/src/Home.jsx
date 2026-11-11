@@ -1,9 +1,10 @@
-import { sfx, BATTLE_TRACKS, getBattleBgm, setBattleBgm, previewBgm, stopPreview } from './audio';
+import { sfx, getBattleTracks, getBattleBgm, setBattleBgm, setOwnedBgm, previewBgm, stopPreview } from './audio';
+import { callApi } from './api';
 import { Panel, Btn, LoopText } from './Ui';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
 import AccountMenu from './AccountMenu';
-import Hud from './Hud';
+import Hud, { HudFrame } from './Hud';
 import { Dot } from './Parts';
 import RankDetail from './RankDetail';
 
@@ -13,28 +14,26 @@ export default function Home({ g, summary, go, onLogout, user }) {
   const [detail, setDetail] = useState(false);
   const [rankOpen, setRankOpen] = useState(false);
   const [bgm, setBgm] = useState(getBattleBgm());
+  const [tracks, setTracks] = useState(getBattleTracks());
+  // 使える戦闘BGM（買った曲・みんなが使える曲）を取得。選んでいた曲が使えなくなっていたらランダムに戻す
+  useEffect(() => {
+    let alive = true;
+    callApi(user, '/bgm/mine').then((r) => { if (!alive) return; setOwnedBgm(r.tracks); setTracks(getBattleTracks()); setBgm(getBattleBgm()); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user]);
   const closeDetail = () => { stopPreview(); setDetail(false); };
   const online = conn === 'online' && profile;
 
   return (
     <>
       <Stage bg="/ui/home2.jpg">
-        {/* 背景に絵柄がないので、上部のステータス枠はここで描く */}
-        <Box x={22} y={30} w={760} h={280} className="rounded-[3.2cqw]"
-          style={{ background: 'linear-gradient(180deg,rgba(16,36,78,.82),rgba(8,20,48,.82))', border: `${cq(4)} solid #c9a24a`, boxShadow: '0 6px 22px rgba(0,0,0,.4), inset 0 0 0 2px rgba(255,236,170,.18)', backdropFilter: 'blur(3px)' }} />
-        <Box x={40} y={48} w={184} h={184} className="rounded-full" style={{ border: `${cq(7)} solid #e0b64f`, boxShadow: '0 0 14px rgba(255,214,120,.5), inset 0 0 8px rgba(0,0,0,.5)' }} />
-        {profile && <Box x={26} y={234} w={210} h={44} className="flex items-center justify-center text-center" style={{ fontSize: fs(profile.displayName.length > 8 ? 22 : 28), fontWeight: 800, color: '#fff4d2', textShadow: '0 2px 5px #000', whiteSpace: 'nowrap', overflow: 'hidden' }}>{profile.displayName}</Box>}
-        {profile?.season && <Box x={262} y={42} w={480} h={40} className="flex items-center" style={{ fontSize: fs(25), fontWeight: 700, color: '#ffe9a8', textShadow: '0 1px 4px #000' }}>シーズン{profile.season.number}　あと{Math.max(0, Math.ceil((profile.season.endAt - Date.now()) / 86400000))}日</Box>}
-        <Box x={742} y={92} w={30} h={96} className="grid place-items-center pointer-events-none" style={{ fontSize: fs(46), color: '#e0b64f', fontWeight: 900 }}>›</Box>
-        {profile?.rank && !profile.isMaster && (
-          <>
-            <Box x={433} y={164} w={288} h={17} className="rounded-full" style={{ background: 'rgba(3,10,28,.75)', border: `${cq(2)} solid rgba(201,162,74,.6)` }} />
-            <Box x={433} y={189} w={140} h={32} className="flex items-center" style={{ fontSize: fs(19), color: "#cfd9f0", whiteSpace: 'nowrap' }}>次のランクまで</Box>
-          </>
-        )}
+        <HudFrame profile={profile} />
         <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
         {/* ランクの詳細 */}
         <Hot x={262} y={58} w={474} h={178} label="ランクの詳細" onClick={() => setRankOpen(true)} />
+        {profile?.streak >= 2 && (
+          <Box x={262} y={246} w={300} h={50} className="rounded-full flex items-center justify-center pointer-events-none" style={{ fontSize: fs(28), fontWeight: 900, color: '#fff4d2', background: 'linear-gradient(90deg,#c2410c,#f59e0b)', border: `${cq(2)} solid #fde68a`, textShadow: '0 2px 4px #000' }}>🔥 {profile.streak}連勝中！</Box>
+        )}
         {conn !== 'online' && (
           <Box x={262} y={304} w={488} h={60} className="rounded-lg bg-black/60 px-3 flex items-center" style={{ fontSize: fs(21), color: '#fcd34d' }}>
             {conn === 'error' ? `接続エラー: ${error}` : <LoopText />}
@@ -70,8 +69,8 @@ export default function Home({ g, summary, go, onLogout, user }) {
             <Panel className="w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-center font-bold text-lg mb-1">♪ 戦闘BGM</h2>
               <p className="text-center text-xs text-slate-300 mb-3">戦闘中に流れるBGMを選べます（選ぶと少しだけ試聴できます）</p>
-              <div className="space-y-2 mb-4">
-                {BATTLE_TRACKS.map(([k, label]) => (
+              <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
+                {tracks.map(([k, label]) => (
                   <label key={k} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer ${bgm === k ? 'border-amber-400 bg-amber-400/15' : 'border-white/15 bg-black/20'}`}>
                     <input type="radio" name="bgm" className="accent-amber-400 w-4 h-4" checked={bgm === k} onChange={() => { setBgm(k); setBattleBgm(k); previewBgm(k); }} />
                     <span className="font-semibold">{label}</span>

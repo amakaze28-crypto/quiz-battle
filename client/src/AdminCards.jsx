@@ -106,7 +106,6 @@ export function ItemViewModal({ user, item, items, startEdit = false, onClose, o
         {item.type === 'card' && edit && <LayoutEditor user={user} item={item} me={me} same={same} onBack={() => setEdit(false)} />}
         {item.type === 'frame' && !edit && <div className="mx-auto w-40 py-4"><Avatar iconId={me.iconId || 'default'} frameId={item.id} size={0} /></div>}
         {item.type === 'frame' && edit && <FrameFitEditor user={user} item={item} me={me} onBack={() => setEdit(false)} />}
-        {item.type === 'banner' && <img src={itemSrc(item.id)} alt="" className="w-full rounded object-cover" style={{ aspectRatio: '4 / 1' }} />}
         {item.type === 'icon' && <div className="mx-auto w-32 py-3"><Avatar iconId={item.id} size={0} /></div>}
         {item.type === 'character' && <img src={charSrc(item.id)} alt="" className="mx-auto max-h-96 object-contain" />}
         {adjustable && !edit && (

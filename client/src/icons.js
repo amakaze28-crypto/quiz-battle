@@ -14,7 +14,8 @@ export const RARITY = {
   legendary: { label: 'レジェンダリー', color: '#fbbf24' },
 };
 export const RARITIES = Object.keys(RARITY);
-export const TYPE_LABEL = { icon: 'アイコン', frame: 'アイコンフレーム', card: 'バナー', banner: '対戦バナー', character: 'キャラ' };
+export const TYPE_LABEL = { icon: 'アイコン', frame: 'アイコンフレーム', card: 'バナー', character: 'キャラ' };
+export const ITEM_TYPE_LABEL = { ...TYPE_LABEL, bgm: '戦闘BGM' }; // ガチャに入れられない戦闘BGMも含む
 
 export function ago(ts) {
   if (!ts) return 'なし';

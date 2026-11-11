@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { callApi, SERVER_URL } from './api';
 import { sfx } from './audio';
 import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
-import Hud from './Hud';
+import Hud, { HudFrame } from './Hud';
 import AccountMenu from './AccountMenu';
 import ItemPreview from './ItemPreview';
 import { Coin, Sand, Dot, RarityTag } from './Parts';
@@ -169,11 +169,12 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
 
   return (
     <>
-      <Stage bg="/ui/gacha.jpg">
+      <Stage bg="/ui/gacha2.jpg">
+        <HudFrame profile={profile} />
         <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
 
         {list.length > 1 && (
-          <Box x={70} y={304} w={884} h={62} className="flex gap-[1.2cqw] overflow-x-auto no-scrollbar">
+          <Box x={70} y={322} w={884} h={56} className="flex gap-[1.2cqw] overflow-x-auto no-scrollbar">
             {list.map((x) => (
               <button key={x.id} onClick={() => setGid(x.id)} className="shrink-0 rounded-xl px-[2.4cqw] whitespace-nowrap"
                 style={{ fontSize: fs(27), fontWeight: 800, color: x.id === gid ? '#2a1a00' : '#fff4d2', background: x.id === gid ? 'linear-gradient(180deg,#ffe9a8,#e0b64f)' : 'rgba(10,21,48,.85)', border: '3px solid #c9a24a', maxWidth: '60cqw', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -185,7 +186,11 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
 
         <Box x={110} y={382} w={804} h={410} className="rounded-2xl overflow-hidden relative flex flex-col items-center justify-center text-center" style={panel}>
           {cur?.hasBanner ? (
-            <img src={`${SERVER_URL}${cur.banner}`} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" />
+            <>
+              {/* 画像が読み込まれるまでは、灰色の地に「読み込み中...」を出す（画像が来ると上に重なって隠れる） */}
+              <div className="absolute inset-0 grid place-items-center" style={{ background: '#6b7280', color: '#f3f4f6', fontSize: fs(34), fontWeight: 700 }}>読み込み中...</div>
+              <img key={cur.banner} src={`${SERVER_URL}${cur.banner}`} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" />
+            </>
           ) : (
             <>
               <p style={{ fontSize: fs(54), fontWeight: 900, color: '#fff4d2', textShadow: '0 3px 8px #000', padding: '0 3cqw' }}>{cur?.name || '魔法のガチャ'}</p>

@@ -13,6 +13,7 @@ import Profile from './Profile';
 import Ranking from './Ranking';
 import NameSetup from './NameSetup';
 import Settings from './Settings';
+import Guide from './Guide';
 import Admin from './Admin';
 import { Mails } from './Pages';
 import Shop from './Shop';
@@ -122,6 +123,7 @@ function Authed({ user, onMaintenance }) {
     profile: <Profile profile={g.profile} user={user} call={call} />,
     ranking: <Ranking user={user} />,
     settings: <Settings profile={g.profile} call={call} />,
+    guide: <Guide go={setView} />,
     mail: <Mails user={user} call={call} onChange={refresh} />,
     admin: g.profile?.isAdmin ? <Admin user={user} /> : null,
   }[view];

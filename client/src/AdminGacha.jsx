@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi, SERVER_URL } from './api';
 import { fileToImage, Field, Num } from './AdminExtra';
-import { RARITY, TYPE_LABEL, itemSrc } from './icons';
+import { RARITY, RARITIES, TYPE_LABEL, itemSrc } from './icons';
 import { SOUND_SLOTS, getAudio } from './audio';
 
 const input = 'w-full rounded-lg bg-[#0e1013] border border-white/10 px-3 py-2';
@@ -14,7 +14,7 @@ const fromLocal = (v) => (v ? new Date(v).getTime() : 0);
 // アイテムを選ぶチェックリスト（セット／期間限定ガチャの中身）
 function ItemPicker({ items, value, onChange, filter }) {
   const [t, setT] = useState('all');
-  const list = items.filter((i) => (!filter || filter(i)) && (t === 'all' || i.type === t));
+  const list = items.filter((i) => i.type !== 'bgm' && (!filter || filter(i)) && (t === 'all' || i.type === t));
   const toggle = (id) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   return (
     <div>
@@ -41,7 +41,94 @@ function ItemPicker({ items, value, onChange, filter }) {
   );
 }
 
-function GachaEditor({ user, g, items, sets, onSaved, onCancel }) {
+
+// ---------- ガチャの確率設定（共通 / ガチャ専用 で同じ画面を使う） ----------
+// ① アイテムと砂の比率 ② レア度ごとの確率 ③ 砂の量・被りの砂、を別々に設定する
+const pctInput = 'w-20 rounded-lg bg-[#0e1013] border border-white/10 px-2 py-1 text-right';
+function GachaRatesEditor({ v, onChange }) {
+  const set = (p) => onChange({ ...v, ...p });
+  const total = Math.round(RARITIES.reduce((t, x) => t + Number(v.rarityPercent[x] || 0), 0) * 10) / 10;
+  const fix = () => { // 合計100%になるように按分し直す（端数は一番大きいレア度に寄せる）
+    if (!total) return;
+    const next = Object.fromEntries(RARITIES.map((x) => [x, Math.round((Number(v.rarityPercent[x] || 0) / total) * 1000) / 10]));
+    const diff = Math.round((100 - RARITIES.reduce((t, x) => t + next[x], 0)) * 10) / 10;
+    const big = RARITIES.reduce((m, x) => (next[x] > next[m] ? x : m), RARITIES[0]);
+    next[big] = Math.round((next[big] + diff) * 10) / 10;
+    set({ rarityPercent: next });
+  };
+  const sand = Number(v.sandPercent) || 0;
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm font-bold mb-1">① アイテムと砂の比率</p>
+        <div className="flex h-6 rounded overflow-hidden text-xs font-bold text-black">
+          <div className="grid place-items-center bg-sky-300" style={{ width: `${100 - sand}%` }}>{100 - sand > 12 ? `アイテム ${Math.round((100 - sand) * 10) / 10}%` : ''}</div>
+          <div className="grid place-items-center bg-amber-300" style={{ width: `${sand}%` }}>{sand > 12 ? `砂 ${sand}%` : ''}</div>
+        </div>
+        <div className="flex items-center gap-3 mt-2">
+          <input type="range" min={0} max={100} step={1} value={sand} onChange={(e) => set({ sandPercent: Number(e.target.value) })} className="flex-1" />
+          <label className="text-sm flex items-center gap-1">砂が出る確率<input type="number" min={0} max={100} step={0.5} className={pctInput} value={sand} onChange={(e) => set({ sandPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} />%</label>
+        </div>
+        <p className="text-xs text-slate-400 mt-1">1回引いたとき「砂」が出る確率です。残りがアイテム（アイテムが1つも入っていないときは全部砂になります）。</p>
+      </div>
+      <div>
+        <p className="text-sm font-bold mb-1">② レア度ごとの出る確率</p>
+        <ul className="space-y-1.5">
+          {RARITIES.map((x) => (
+            <li key={x} className="flex items-center gap-2">
+              <span className="w-24 text-sm font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</span>
+              <div className="flex-1 h-3 rounded bg-slate-700 overflow-hidden"><div className="h-full" style={{ width: `${Math.min(100, Number(v.rarityPercent[x]) || 0)}%`, background: RARITY[x].color }} /></div>
+              <input type="number" min={0} max={100} step={0.1} className={pctInput} value={v.rarityPercent[x]} onChange={(e) => set({ rarityPercent: { ...v.rarityPercent, [x]: Math.min(100, Math.max(0, Number(e.target.value) || 0)) } })} /><span className="text-sm">%</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <span className={`text-sm font-bold ${total === 100 ? 'text-emerald-400' : 'text-amber-300'}`}>合計 {total}%</span>
+          {total !== 100 && <button type="button" onClick={fix} className={`${btn} bg-slate-700`}>合計を100%に調整</button>}
+        </div>
+        <p className="text-xs text-slate-400 mt-1">アイテムも砂も、この確率でレア度が決まります（合計が100%でなくても、割合で按分されます）。そのレア度のアイテムがガチャに入っていないときは、入っているレア度の中で按分し直します。</p>
+      </div>
+      <div>
+        <p className="text-sm font-bold mb-1">③ 砂の量</p>
+        <table className="w-full text-sm">
+          <thead><tr className="text-slate-400 text-left"><th className="pb-1 font-normal">レア度</th><th className="font-normal">砂が出たときの量</th><th className="font-normal">アイテムが被ったときの砂</th></tr></thead>
+          <tbody>
+            {RARITIES.map((x) => (
+              <tr key={x}>
+                <td className="py-0.5 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
+                <td><input type="number" min={0} className={pctInput} value={v.sandAmounts[x]} onChange={(e) => set({ sandAmounts: { ...v.sandAmounts, [x]: Math.max(0, Math.round(Number(e.target.value) || 0)) } })} /></td>
+                <td><input type="number" min={0} className={pctInput} value={v.dupSand[x]} onChange={(e) => set({ dupSand: { ...v.dupSand, [x]: Math.max(0, Math.round(Number(e.target.value) || 0)) } })} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-slate-400 mt-1">「砂が出たときの量」は、①で砂が出たとき、②で決まったレア度ぶんの量です。「被ったとき」は、持っているアイテムがもう一度出たときにもらえる砂です。</p>
+      </div>
+    </div>
+  );
+}
+
+// 共通の確率設定（ガチャ専用の設定がないガチャは、これを使う）
+function CommonRatesCard({ user, gs, onSaved }) {
+  const [v, setV] = useState(gs);
+  const [msg, setMsg] = useState(null);
+  useEffect(() => { setV(gs); }, [gs]);
+  const save = async () => {
+    try { await adminApi(user, '/settings', { method: 'PUT', body: { gacha: v } }); setMsg({ ok: true, text: '保存しました' }); onSaved(); } catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
+  return (
+    <section className={`${card} space-y-3`}>
+      <h2 className="font-bold">共通の確率設定</h2>
+      <p className="text-xs text-slate-400">「専用の確率」にしていないガチャは、すべてここの設定で動きます。</p>
+      <Field label="1回あたりのコイン（共通）"><Num value={v.cost} onChange={(c) => setV({ ...v, cost: c })} /></Field>
+      <GachaRatesEditor v={v} onChange={setV} />
+      {msg && <p className={`text-sm ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
+      <button onClick={save} className={`${btn} bg-emerald-500 font-bold`}>保存</button>
+    </section>
+  );
+}
+
+function GachaEditor({ user, g, items, sets, common, onSaved, onCancel }) {
   const isNew = !g.id;
   const normal = g.kind === 'normal';
   const [f, setF] = useState({ ...g, bannerNew: undefined });
@@ -51,6 +138,7 @@ function GachaEditor({ user, g, items, sets, onSaved, onCancel }) {
     const body = {
       name: f.name, cost: f.cost === '' || f.cost === null ? null : Number(f.cost), enabled: f.enabled,
       startAt: f.startAt, endAt: f.endAt, itemIds: f.itemIds, setIds: f.setIds,
+      rates: f.rates || null,
       ...(f.bannerNew !== undefined ? { banner: f.bannerNew } : {}),
     };
     try {
@@ -72,9 +160,13 @@ function GachaEditor({ user, g, items, sets, onSaved, onCancel }) {
           {shownBanner && <button type="button" onClick={() => setF({ ...f, bannerNew: '' })} className={`${btn} bg-slate-700`}>バナーを外す</button>}
         </div>
       </div>
-      <Field label="1回あたりのコイン（空欄＝「設定」タブの共通コスト）">
+      <Field label="1回あたりのコイン（空欄＝下の「共通の確率設定」のコスト）">
         <input type="number" min={0} className={`${input} w-28`} value={f.cost ?? ''} onChange={(e) => setF({ ...f, cost: e.target.value === '' ? null : Number(e.target.value) })} />
       </Field>
+      <div className="rounded-lg bg-black/20 p-3">
+        <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={!!f.rates} onChange={(e) => setF({ ...f, rates: e.target.checked ? structuredClone((({ cost, ...r }) => r)(common)) : null })} />このガチャ専用の確率にする（オフ＝共通の確率設定を使う）</label>
+        {f.rates && <div className="mt-3"><GachaRatesEditor v={f.rates} onChange={(r) => setF({ ...f, rates: r })} /></div>}
+      </div>
       {!normal && (
         <>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />開催する（オフなら非表示）</label>
@@ -83,7 +175,7 @@ function GachaEditor({ user, g, items, sets, onSaved, onCancel }) {
             <label>終了（空欄＝期限なし）<input type="datetime-local" className={input} value={toLocal(f.endAt)} onChange={(e) => setF({ ...f, endAt: fromLocal(e.target.value) })} /></label>
           </div>
           <div>
-            <p className="text-sm font-bold mb-1">排出するアイテム（レア度は各アイテムの設定・確率は「設定」タブの共通値）</p>
+            <p className="text-sm font-bold mb-1">排出するアイテム（レア度は各アイテムの設定。確率は上の設定）</p>
             <ItemPicker items={items} value={f.itemIds} onChange={(v) => setF({ ...f, itemIds: v })} />
           </div>
           <div>
@@ -143,9 +235,11 @@ export function GachasAdmin({ user }) {
   const [eg, setEg] = useState(null);
   const [es, setEs] = useState(null);
   const [err, setErr] = useState('');
+  const [common, setCommon] = useState(null);
   const load = useCallback(async () => {
     try {
-      const [a, b, c] = await Promise.all([adminApi(user, '/gachas'), adminApi(user, '/sets'), adminApi(user, '/items')]);
+      const [a, b, c, d] = await Promise.all([adminApi(user, '/gachas'), adminApi(user, '/sets'), adminApi(user, '/items'), adminApi(user, '/settings')]);
+      setCommon(d.gacha);
       setGachas(a.gachas); setSets(b.sets); setItems(c.items); setErr('');
     } catch (e) { setErr(e.message); }
   }, [user]);
@@ -160,19 +254,20 @@ export function GachasAdmin({ user }) {
   return (
     <div className="space-y-6 max-w-3xl">
       {err && <p className="text-red-400">{err}</p>}
+      {common && <CommonRatesCard user={user} gs={common} onSaved={load} />}
       <section>
         <div className="flex items-center gap-3 mb-2"><h2 className="font-bold">ガチャ</h2>
           <button onClick={() => setEg(blankG)} className={`${btn} bg-sky-600`}>＋ 期間限定ガチャを追加</button></div>
         <ul className="space-y-2">
           {gachas.map((g) => (
             <li key={g.id}>
-              {eg?.id === g.id && eg.id ? <GachaEditor user={user} g={eg} items={items} sets={sets} onSaved={() => { setEg(null); load(); }} onCancel={() => setEg(null)} /> : (
+              {eg?.id === g.id && eg.id ? <GachaEditor user={user} g={eg} items={items} sets={sets} common={common} onSaved={() => { setEg(null); load(); }} onCancel={() => setEg(null)} /> : (
                 <div className={`${card} !p-3 flex items-center gap-3 flex-wrap`}>
                   {g.banner ? <img src={`${SERVER_URL}${g.banner}`} alt="" className="h-12 rounded aspect-[1000/535] object-cover" /> : <div className="h-12 aspect-[1000/535] rounded bg-slate-700" />}
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold truncate">{g.name} <span className={`text-xs px-1.5 py-0.5 rounded ${g.kind === 'normal' ? 'bg-slate-600' : 'bg-rose-700'}`}>{g.kind === 'normal' ? '通常' : '期間限定'}</span> <span className="text-xs text-slate-300">{status(g)}</span></p>
                     <p className="text-xs text-slate-400">
-                      {g.cost === null ? '共通コスト' : `${g.cost}コイン`}
+                      {g.cost === null ? '共通コスト' : `${g.cost}コイン`}{g.rates ? ' ・ 専用の確率' : ''}
                       {g.kind === 'limited' && ` ・ ${g.startAt ? new Date(g.startAt).toLocaleString('ja-JP') : '即時'} 〜 ${g.endAt ? new Date(g.endAt).toLocaleString('ja-JP') : '期限なし'}`}
                       {g.kind === 'limited' && ` ・ アイテム${g.itemIds.length}・セット${g.setIds.length}`}
                     </p>
@@ -185,7 +280,7 @@ export function GachasAdmin({ user }) {
             </li>
           ))}
         </ul>
-        {eg && !eg.id && <div className="mt-2"><GachaEditor user={user} g={eg} items={items} sets={sets} onSaved={() => { setEg(null); load(); }} onCancel={() => setEg(null)} /></div>}
+        {eg && !eg.id && <div className="mt-2"><GachaEditor user={user} g={eg} items={items} sets={sets} common={common} onSaved={() => { setEg(null); load(); }} onCancel={() => setEg(null)} /></div>}
       </section>
 
       <section>
@@ -269,6 +364,7 @@ export function SoundsAdmin({ user }) {
     <div className="max-w-3xl space-y-5">
       {msg && <p className={`text-sm ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
       <p className="text-sm text-slate-300">場面ごとに音源を差し替えられます（mp3推奨・12MBまで）。BGMは自動でループします。</p>
+      <BattleTracksAdmin user={user} />
       {[['bgm', 'BGM'], ['se', '効果音']].map(([k, t]) => (
         <section key={k}>
           <h2 className="font-bold mb-2">{t}</h2>
@@ -276,5 +372,84 @@ export function SoundsAdmin({ user }) {
         </section>
       ))}
     </div>
+  );
+}
+
+// 戦闘曲の追加。「みんなが使える」曲は全員の選択肢とランダムの候補に入り、「ショップで販売」の曲は買った人だけが使える
+function BattleTracksAdmin({ user }) {
+  const [list, setList] = useState([]);
+  const blank = { name: '', mode: 'free', price: 500, rarity: 'common', file: null };
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [playing, setPlaying] = useState('');
+  const load = useCallback(async () => {
+    try { setList((await adminApi(user, '/items')).items.filter((i) => i.type === 'bgm').sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))); } catch (e) { setMsg({ ok: false, text: e.message }); }
+  }, [user]);
+  useEffect(() => { load(); }, [load]);
+  const stop = () => { if (cur) { cur.pause(); cur.src = ''; cur = null; } clearTimeout(curTimer); setPlaying(''); };
+  useEffect(() => () => { if (cur) { cur.pause(); cur = null; } clearTimeout(curTimer); }, []);
+  const play = (i) => {
+    const was = playing === i.id; stop(); if (was) return;
+    const a = new Audio(`${SERVER_URL}/sound/bgm_${i.id}?t=${Date.now()}`); a.volume = Math.min(1, getAudio().bgmVol);
+    a.onended = () => { if (cur === a) stop(); };
+    cur = a; setPlaying(i.id); a.play().catch(() => setPlaying(''));
+    curTimer = setTimeout(() => { if (cur === a) stop(); }, 15000);
+  };
+  const add = async () => {
+    if (!f.file || !f.name.trim()) return;
+    if (f.file.size > 12 * 1024 * 1024) { setMsg({ ok: false, text: '12MB以下のファイルにしてください' }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      await adminApi(user, '/items', { method: 'POST', body: { type: 'bgm', name: f.name, rarity: f.rarity, price: f.mode === 'shop' ? f.price : 0, free: f.mode === 'free', onShop: f.mode === 'shop', audio: await readDataUrl(f.file), audioName: f.file.name } });
+      setMsg({ ok: true, text: '追加しました' }); setF(blank); await load();
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setBusy(false);
+  };
+  const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); } };
+  const del = async (i) => { if (!window.confirm(`「${i.name}」を削除しますか？（買ったプレイヤーも使えなくなります）`)) return; try { await adminApi(user, `/items/${i.id}`, { method: 'DELETE' }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); } };
+  const replace = async (i, file) => {
+    if (!file) return;
+    try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body: { audio: await readDataUrl(file), audioName: file.name } }); setMsg({ ok: true, text: '音源を差し替えました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
+  return (
+    <section>
+      <h2 className="font-bold mb-2">戦闘曲の追加</h2>
+      <div className={`${card} space-y-3 mb-3`}>
+        <input className={input} placeholder="曲名" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" className="text-sm" onChange={(e) => setF({ ...f, file: e.target.files?.[0] || null })} />
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <label className="flex items-center gap-2"><input type="radio" checked={f.mode === 'free'} onChange={() => setF({ ...f, mode: 'free' })} />みんなが使える（無料）</label>
+          <label className="flex items-center gap-2"><input type="radio" checked={f.mode === 'shop'} onChange={() => setF({ ...f, mode: 'shop' })} />ショップで販売</label>
+          {f.mode === 'shop' && <label className="flex items-center gap-2">価格(砂)<input type="number" min={0} className={`${input} w-24`} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>}
+        </div>
+        {f.mode === 'shop' && (
+          <div className="flex flex-wrap gap-1.5">
+            {RARITIES.map((x) => (
+              <button key={x} onClick={() => setF({ ...f, rarity: x })} className={`${btn} font-bold ${f.rarity === x ? 'text-black' : 'bg-[#0e1013]'}`} style={{ background: f.rarity === x ? RARITY[x].color : undefined, color: f.rarity === x ? undefined : RARITY[x].color }}>{RARITY[x].label}</button>
+            ))}
+          </div>
+        )}
+        {msg && <p className={`text-sm ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
+        <button onClick={add} disabled={busy || !f.file || !f.name.trim()} className={`${btn} bg-emerald-500 font-bold disabled:opacity-40`}>{busy ? 'アップロード中…' : '追加'}</button>
+      </div>
+      <ul className="space-y-2">
+        {list.map((i) => (
+          <li key={i.id} className={`${card} !p-3 flex items-center gap-3 flex-wrap`}>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold truncate">{i.name}</p>
+              <p className="text-xs text-slate-400">{i.free ? 'みんなが使える' : i.onShop ? `ショップ販売 ${i.price}砂 ・${RARITY[i.rarity]?.label}` : '非売'}</p>
+            </div>
+            <button onClick={() => play(i)} className={`${btn} bg-slate-700`}>{playing === i.id ? '■ 停止' : '▶ 試聴'}</button>
+            <button onClick={() => patch(i, i.free ? { free: false, onShop: true } : { free: true })} className={`${btn} ${i.free ? 'bg-emerald-600' : 'bg-slate-600'}`}>{i.free ? '無料公開中' : '無料にする'}</button>
+            {!i.free && <button onClick={() => patch(i, { onShop: !i.onShop })} className={`${btn} ${i.onShop ? 'bg-sky-600' : 'bg-slate-600'}`}>{i.onShop ? '販売中' : '非売'}</button>}
+            {!i.free && <button onClick={() => { const p = window.prompt('新しい価格（魔法の砂）', i.price); if (p !== null) patch(i, { price: Number(p) }); }} className={`${btn} bg-slate-700`}>価格</button>}
+            <label className={`${btn} bg-sky-700 cursor-pointer`}>音源を差し替え<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" className="hidden" onChange={(e) => { replace(i, e.target.files?.[0]); e.target.value = ''; }} /></label>
+            <button onClick={() => del(i)} className={`${btn} bg-red-700`}>削除</button>
+          </li>
+        ))}
+        {list.length === 0 && <li className="text-slate-400 text-sm">追加した戦闘曲はありません（同梱の3曲はいつでも使えます）</li>}
+      </ul>
+    </section>
   );
 }

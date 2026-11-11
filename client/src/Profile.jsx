@@ -6,11 +6,13 @@ import { Avatar, Coin, Sand } from './Parts';
 import ItemPreview from './ItemPreview';
 import { Panel, Title } from './Ui';
 import { sfx } from './audio';
+import { QuestionReportModal } from './ReportModal';
 
 // 分野別の得意・苦手と、間違えた問題（最新20問）
 function Stats({ user }) {
   const [st, setSt] = useState(null);
   const [open, setOpen] = useState(null);
+  const [rep, setRep] = useState(null); // 通報する問題
   useEffect(() => { callApi(user, '/stats').then(setSt).catch(() => setSt({ cats: [], strong: [], weak: [], wrong: [] })); }, [user]);
   if (!st) return null;
   const Bar = ({ c, color }) => (
@@ -51,13 +53,16 @@ function Stats({ user }) {
                     </p>
                   ))}
                   {w.myChoice === null && <p className="text-xs text-amber-300">時間切れ（未回答）でした</p>}
+                  {w.cat && <p className="text-xs pt-1"><span className="rounded-full bg-sky-500/25 text-sky-200 px-2 py-0.5">🏷 {w.cat}</span></p>}
                   {w.explanation && <p className="text-xs text-slate-300 pt-1">解説: {w.explanation}</p>}
+                  <div className="text-right pt-1"><button onClick={() => setRep({ id: w.id, question: w.question })} className="text-xs text-amber-300 underline">⚠ この問題を通報</button></div>
                 </div>
               )}
             </li>
           ))}
         </ul>
       </Panel>
+      {rep && <QuestionReportModal user={user} question={rep} fromProfile onClose={() => setRep(null)} />}
     </>
   );
 }
@@ -79,7 +84,6 @@ function CardEditor({ user, profile, call }) {
   const chars = items.filter((i) => i.type === 'character');
   const cards = items.filter((i) => i.type === 'card');
   const frames = items.filter((i) => i.type === 'frame');
-  const strips = items.filter((i) => i.type === 'banner');
   return (
     <Panel className="p-3 mt-3 text-left">
       <h3 className="font-bold mb-2">カードの設定</h3>
@@ -93,20 +97,11 @@ function CardEditor({ user, profile, call }) {
         <button onClick={() => equip('frame', 'none')} className={`${cell} text-[10px] ${(profile.frameId || 'none') === 'none' ? sel : ''}`}>なし</button>
         {frames.map((i) => <button key={i.id} onClick={() => equip('frame', i.id)} className={`${cell} ${profile.frameId === i.id ? sel : ''}`}><Avatar iconId={profile.iconId} frameId={i.id} size={44} /></button>)}
       </div>
-      <p className="text-xs text-slate-300 mb-1">バナー（プレイヤーカードの台紙・{cards.length}）</p>
+      <p className="text-xs text-slate-300 mb-1">バナー（プレイヤーカード・対戦画面の台紙・{cards.length}）</p>
       <div className="grid grid-cols-4 gap-2 mb-3 max-h-72 overflow-y-auto">
         <button onClick={() => equip('card', 'none')} className={`${cell} text-[10px] min-h-[60px] ${(profile.cardId || 'none') === 'none' ? sel : ''}`}>標準</button>
         {cards.map((i) => <button key={i.id} onClick={() => equip('card', i.id)} className={`${cell} ${profile.cardId === i.id ? sel : ''}`}><ItemPreview item={i} size="40px" /></button>)}
       </div>
-      {strips.length > 0 && (
-        <>
-          <p className="text-xs text-slate-300 mb-1">対戦バナー（マッチング画面の帯）</p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <button onClick={() => equip('banner', 'none')} className={`${cell} text-[10px] min-h-[40px] ${(profile.bannerId || 'none') === 'none' ? sel : ''}`}>なし</button>
-            {strips.map((i) => <button key={i.id} onClick={() => equip('banner', i.id)} className={`${cell} ${profile.bannerId === i.id ? sel : ''}`}><ItemPreview item={i} /></button>)}
-          </div>
-        </>
-      )}
       <p className="text-xs text-slate-300 mb-1">キャラクター（アイコンとは別）</p>
       <div className="grid grid-cols-4 gap-2 mb-3">
         {chars.map((i) => <button key={i.id} onClick={() => equip('character', i.id)} className={`${cell} ${profile.charId === i.id ? sel : ''}`}><ItemPreview item={i} size="48px" /></button>)}

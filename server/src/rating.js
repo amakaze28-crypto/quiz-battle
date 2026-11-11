@@ -19,6 +19,8 @@ export const RATE_MAX_BASE = 20;
 export const MARGIN_PER_100 = 2; // 他の平均との点差100点につき ±2
 export const MARGIN_CAP = 10;
 export const RATE_CAP = 50;
+// 連勝ボーナス: 3連勝(勝利を含む連勝数)から1.25倍、以降 0.25ずつ増え、10連勝の3.0倍で頭打ち。上限(RATE_CAP)で丸めた「あと」に掛けるので、50を超えることがある
+export const streakMult = (n) => (n >= 3 ? Math.min(3, 1 + 0.25 * (n - 2)) : 1);
 export function placeBases(n) {
   if (n === 4) return [20, 7, -7, -20];
   if (n < 2) return [0];

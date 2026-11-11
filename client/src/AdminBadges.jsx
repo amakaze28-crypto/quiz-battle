@@ -115,7 +115,11 @@ export function BadgesAdmin({ user }) {
   );
 }
 
-// シーズン設定。切り替わるとランクがリセットされ、最終ランクのバッジが付与される
+// 降格の例の表示用（サーバーの rank.js と同じ数え方）
+const TIER_NAMES = ['ルーキー', 'ブロンズ', 'シルバー', 'ゴールド', 'プラチナ', 'ダイヤ'];
+const subLevelLabel = (L) => (L >= 30 ? 'マスター' : `${TIER_NAMES[Math.floor(L / 5)]}${5 - (L % 5)}`);
+
+// シーズン設定。切り替わるとランクがリセット（または降格）され、最終ランクのバッジが付与される
 export function SeasonAdmin({ user }) {
   const [s, setS] = useState(null);
   const [msg, setMsg] = useState(null);
@@ -126,7 +130,7 @@ export function SeasonAdmin({ user }) {
     try { const d = await adminApi(user, '/settings', { method: 'PUT', body: { season: s } }); setS(d.season); setMsg({ ok: true, text: '保存しました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const rotate = async () => {
-    if (!window.confirm('今すぐシーズンを終了します。全員のランクがリセットされ、最終ランクのバッジが付与されます。元に戻せません。よろしいですか？')) return;
+    if (!window.confirm(`今すぐシーズンを終了します。${s.resetMode === 'demote' ? `全員が${s.demoteSteps}段階降格し` : '全員のランクがリセットされ'}、最終ランクのバッジが付与されます。元に戻せません。よろしいですか？`)) return;
     try { const r = await adminApi(user, '/season/rotate', { method: 'POST' }); setMsg({ ok: true, text: `シーズン${r.ended}を終了しました（バッジ付与 ${r.given}人）` }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const end = s.startAt ? s.startAt + s.lengthDays * 86400000 : 0;
@@ -137,7 +141,19 @@ export function SeasonAdmin({ user }) {
       <Field label="現在のシーズン番号"><Num value={s.number} onChange={(v) => setS({ ...s, number: v })} /></Field>
       <Field label="1シーズンの長さ（日）"><Num value={s.lengthDays} onChange={(v) => setS({ ...s, lengthDays: v })} /></Field>
       <Field label="今シーズンの開始日時"><input type="datetime-local" className={`${input} w-56`} value={toLocal(s.startAt)} onChange={(e) => setS({ ...s, startAt: fromLocal(e.target.value) })} /></Field>
-      <Field label="リセット後のポイント（0＝ルーキー5から）"><Num value={s.resetPt} onChange={(v) => setS({ ...s, resetPt: v })} /></Field>
+      <div className="rounded-lg bg-black/20 p-3 my-2">
+        <p className="text-sm font-bold mb-1">シーズン終了時のランクの扱い</p>
+        <label className="flex items-center gap-2 py-1"><input type="radio" checked={s.resetMode !== 'demote'} onChange={() => setS({ ...s, resetMode: 'full' })} />完全にリセットする</label>
+        {s.resetMode !== 'demote' && <Field label="リセット後のポイント（0＝ルーキー5から）"><Num value={s.resetPt} onChange={(v) => setS({ ...s, resetPt: v })} /></Field>}
+        <label className="flex items-center gap-2 py-1"><input type="radio" checked={s.resetMode === 'demote'} onChange={() => setS({ ...s, resetMode: 'demote' })} />全員を数段階だけ降格する</label>
+        {s.resetMode === 'demote' && (
+          <>
+            <Field label="降格する段階数（0＝そのまま / 最大30）"><Num value={s.demoteSteps ?? 2} onChange={(v) => setS({ ...s, demoteSteps: Math.min(30, v) })} /></Field>
+            <p className="text-xs text-slate-300">1段階＝サブランク1つ（ブロンズ3→ブロンズ4）。ランクをまたいで数えます。マスターはダイヤ1の1つ上として数え、降格後はそのサブランクの一番下のポイントから始まります。マスターのmrは消えます。</p>
+            <p className="text-xs text-amber-200 mt-1">例（{s.demoteSteps ?? 2}段階）: {[30, 29, 13, 5].map((L) => `${subLevelLabel(L)}→${s.demoteSteps ? subLevelLabel(Math.max(0, L - (s.demoteSteps ?? 2))) : subLevelLabel(L)}`).join(' / ')}</p>
+          </>
+        )}
+      </div>
       {s.enabled && end > 0 && <p className="text-sm text-amber-200 my-2">今シーズンは {new Date(end).toLocaleString('ja-JP')} に終了し、自動で次のシーズンに切り替わります。</p>}
       <p className="text-xs text-slate-400 mb-3">終了時、そのシーズンに1戦以上した人へ「最終ランクのバッジ」が付与されます。エンペラーは最終順位の数字つきです。</p>
       {msg && <p className={`text-sm mb-2 ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}

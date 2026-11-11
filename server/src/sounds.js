@@ -2,6 +2,8 @@ import * as store from './store.js';
 
 // 管理画面から差し替える音源。Firestoreは1件1MBまでなので、base64を分割して保存する
 export const SLOTS = ['title', 'home', 'battle1', 'battle2', 'battle3', 'gacha', 'tap', 'queue', 'ok', 'match', 'question', 'correct', 'wrong', 'secondary', 'coin', 'gacha_se', 'rare', 'win', 'lose', 'tick', 'dove'];
+// 戦闘BGMアイテム用の音源は bgm_<アイテムID> という名前で保存（固定スロットとは別扱い）
+export const isSlot = (s) => SLOTS.includes(s) || /^bgm_[a-f0-9]{20}$/.test(s);
 const CHUNK = 600_000;
 export const MAX_BYTES = 12 * 1024 * 1024;
 
@@ -12,7 +14,7 @@ export async function listSounds() {
 
 export async function saveSound(slot, name, dataUrl) {
   const m = /^data:(audio\/[a-z0-9.+-]+|video\/mp4|application\/octet-stream);base64,(.+)$/i.exec(dataUrl || '');
-  if (!SLOTS.includes(slot) || !m) throw new Error('音声ファイル(mp3 / wav / ogg / m4a)を選んでください');
+  if (!isSlot(slot) || !m) throw new Error('音声ファイル(mp3 / wav / ogg / m4a)を選んでください');
   const b64 = m[2];
   const size = Math.floor((b64.length * 3) / 4);
   if (size > MAX_BYTES) throw new Error('ファイルが大きすぎます（12MBまで）');
@@ -32,7 +34,7 @@ export async function deleteSound(slot) {
 }
 
 export async function soundData(slot) {
-  if (!SLOTS.includes(slot)) return null;
+  if (!isSlot(slot)) return null;
   const d = await store.colGet('sounds', slot);
   if (!d) return null;
   const parts = [];

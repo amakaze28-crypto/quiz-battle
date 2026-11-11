@@ -6,7 +6,16 @@ const BGM = { gacha: '/audio/bgm-gacha.mp3', title: '/audio/bgm-title.mp3', home
 // 管理画面で差し替えられた音源（slot → URL）。なければ同梱ファイルを使う
 let overrides = {};
 const seSlot = (n) => (n === 'gacha' ? 'gacha_se' : n);
-const bgmUrl = (n) => overrides[n] || BGM[n];
+// ショップで買える／みんなが使える戦闘BGM（管理画面で追加）。名前は bgm_<アイテムID>
+let owned = []; // [{ id, name, slot, v }]
+const isOwnedSlot = (n) => owned.some((t) => t.slot === n);
+const bgmUrl = (n) => overrides[n] || BGM[n] || (isOwnedSlot(n) ? `${SERVER_URL}/sound/${n}?v=${owned.find((t) => t.slot === n).v}` : /^bgm_[a-f0-9]{20}$/.test(n) ? `${SERVER_URL}/sound/${n}` : undefined); // 未購入の曲も、ショップの試聴用に配信される
+export function setOwnedBgm(list) {
+  const next = Array.isArray(list) ? list : [];
+  if (JSON.stringify(next) === JSON.stringify(owned)) return;
+  owned = next; battlePick = null;
+  listeners.forEach((f) => f(state));
+}
 const seUrl = (n) => overrides[seSlot(n)] || `/audio/se-${n}.mp3`;
 export const SOUND_SLOTS = [
   ['title', 'タイトル画面', 'bgm'], ['home', 'ホーム・ショップ・ミッションなど', 'bgm'], ['gacha', 'ガチャ画面', 'bgm'],
@@ -110,7 +119,7 @@ export function stopPreview() {
 }
 export function previewBgm(name, ms = 8000) {
   clearTimeout(prevTimer);
-  if (!BATTLE.includes(name)) { stopPreview(); return; } // 「ランダム」は試聴なし
+  if (!BATTLE.includes(name) && !/^bgm_[a-f0-9]{20}$/.test(name)) { stopPreview(); return; } // 「ランダム」は試聴なし
   if (prevWant === null) prevWant = want;
   want = name; apply();
   prevTimer = setTimeout(stopPreview, ms);
@@ -118,15 +127,19 @@ export function previewBgm(name, ms = 8000) {
 
 export const playBgm = (name) => {
   clearTimeout(prevTimer); prevWant = null; // 試聴中に画面が変わったら試聴は終了
-  if (name === 'battle') { if (!battlePick) { const c = getBattleBgm(); battlePick = c === 'random' ? BATTLE[Math.floor(Math.random() * BATTLE.length)] : c; } want = battlePick; }
+  if (name === 'battle') { if (!battlePick) { const c = getBattleBgm(); battlePick = c === 'random' ? randomTrack() : c; } want = battlePick; }
   else { battlePick = null; want = BGM[name] ? name : null; } // 'none' など未定義の名前は「何も流さない」
   apply();
 };
 
 // 戦闘BGMの選択（'random' または battle1〜3）。端末に保存
 const BKEY = 'quiz.battleBgm';
-export const BATTLE_TRACKS = [['random', 'ランダム'], ['battle1', "The God's Gambit"], ['battle2', 'Silver Wind Over Stone'], ['battle3', 'Iron Liturgy']];
-export const getBattleBgm = () => { try { const v = localStorage.getItem(BKEY); return BATTLE_TRACKS.some((t) => t[0] === v) ? v : 'random'; } catch { return 'random'; } };
+const DEFAULT_TRACKS = [['battle1', "The God's Gambit"], ['battle2', 'Silver Wind Over Stone'], ['battle3', 'Iron Liturgy']];
+// 選べる戦闘曲（ランダム + 同梱の3曲 + 使える追加曲）
+export const getBattleTracks = () => [['random', 'ランダム'], ...DEFAULT_TRACKS, ...owned.map((t) => [t.slot, t.name])];
+export const BATTLE_TRACKS = getBattleTracks();
+const randomTrack = () => { const all = [...BATTLE, ...owned.map((t) => t.slot)]; return all[Math.floor(Math.random() * all.length)]; };
+export const getBattleBgm = () => { try { const v = localStorage.getItem(BKEY); return getBattleTracks().some((t) => t[0] === v) ? v : 'random'; } catch { return 'random'; } };
 export const setBattleBgm = (v) => { try { localStorage.setItem(BKEY, v); } catch { /* 保存できなくても動く */ } battlePick = null; };
 
 // opt.vol: 音量を指定（設定画面の確認音用）/ opt.force: オフでも鳴らす

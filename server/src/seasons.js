@@ -1,6 +1,6 @@
 import * as store from './store.js';
 import { settings, saveSettings } from './settings.js';
-import { rankInfo } from './rank.js';
+import { rankInfo, demotedState } from './rank.js';
 import { cfg } from './config.js';
 import { refreshEmperors } from './emperors.js';
 
@@ -23,7 +23,8 @@ export async function rotateSeason() {
   const now = Date.now();
   let given = 0;
   for (const u of users) {
-    const patch = { pt: s.resetPt, mr: null, isMaster: false, seasonGames: 0 };
+    // 完全リセット、または全員 demoteSteps 段階降格（0段階なら、ランクはそのまま）
+    const patch = { ...(s.resetMode === 'demote' ? demotedState(u, s.demoteSteps) : { pt: s.resetPt, mr: null, isMaster: false }), seasonGames: 0 };
     if ((u.seasonGames || 0) > 0) {
       const emp = place.has(u.uid);
       const info = emp ? { key: 'emperor', label: 'エンペラー', sub: null } : rankInfo(u, null);
@@ -36,7 +37,7 @@ export async function rotateSeason() {
   store.dropUserLists();
   await saveSettings({ season: { ...s, number: s.number + 1, startAt: now } });
   await refreshEmperors();
-  console.log(`[season] シーズン${s.number}を終了。バッジ付与 ${given}人 / ランクをリセット`);
+  console.log(`[season] シーズン${s.number}を終了。バッジ付与 ${given}人 / ${s.resetMode === 'demote' ? `全員${s.demoteSteps}段階降格` : 'ランクをリセット'}`);
   return { ended: s.number, given };
 }
 

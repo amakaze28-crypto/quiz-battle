@@ -10,15 +10,14 @@ const DEFAULTS = {
   secondaryChance: 0.05,                                // Secondaryシステム(得点2倍)の発動確率
   showQueueSize: true,                                  // マッチング中に待機人数を表示するか
   maintenance: { on: false, message: '' },              // メンテナンス中は管理者以外ログイン不可
-  season: { enabled: false, lengthDays: 30, number: 1, startAt: 0, resetPt: 0 }, // シーズン（切替でランクリセット）
+  season: { enabled: false, lengthDays: 30, number: 1, startAt: 0, resetPt: 0, resetMode: 'full', demoteSteps: 2 }, // シーズン（切替でランクリセット。resetMode: full=完全リセット / demote=全員demoteSteps段階降格）
   bots: { enabled: true, waitMin: 5, waitMax: 12 },     // botマッチ（ダイヤ帯まで）。待ち時間が waitMin〜waitMax 秒を超えるとbotが加わる
   gacha: {
     cost: 100,                                          // 1回あたりのコイン
-    typeWeights: { item: 70, sand: 30 },                // アイテムが出る / 砂が出る
-    itemRarityWeights: { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 },
-    sandRarityWeights: { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 },
-    sandAmounts: { common: 20, uncommon: 50, rare: 100, epic: 300, legendary: 1000 }, // 砂が出たときの量(レア度が高いほど多い)
-    dupSand: { common: 10, uncommon: 50, rare: 100, epic: 500, legendary: 1000 },     // アイテムが被ったときの砂
+    sandPercent: 30,                                    // 砂が出る確率(%)。残りがアイテム
+    rarityPercent: { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 }, // どのレア度が何%で出るか（アイテムも砂もこの確率でレア度が決まる。合計100%）
+    sandAmounts: { common: 20, uncommon: 50, rare: 100, epic: 300, legendary: 1000 }, // 砂が出たときの量(レア度別)
+    dupSand: { common: 10, uncommon: 50, rare: 100, epic: 500, legendary: 1000 },     // アイテムが被ったときの砂(レア度別)
   },
 };
 
@@ -28,18 +27,23 @@ export const settings = () => current;
 const num = (v, min, max, fb) => (Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Math.round(Number(v)))) : fb);
 const wnum = (v, fb) => (Number.isFinite(Number(v)) ? Math.min(100000, Math.max(0, Number(v))) : fb);
 
-function mergeGacha(src = {}) {
+export function mergeGacha(src = {}) {
   const d = DEFAULTS.gacha;
   const per = (key, fn) => Object.fromEntries(RARITIES.map((r) => [r, fn(src[key]?.[r], d[key][r])]));
+  // 旧形式（typeWeights / itemRarityWeights）の設定が残っていても、そのまま読み替える
+  const oldSand = src.typeWeights && Number(src.typeWeights.item) + Number(src.typeWeights.sand) > 0
+    ? (Number(src.typeWeights.sand) / (Number(src.typeWeights.item) + Number(src.typeWeights.sand))) * 100 : undefined;
+  const rar = src.rarityPercent || src.itemRarityWeights;
   return {
     cost: num(src.cost, 0, 1000000, d.cost),
-    typeWeights: { item: wnum(src.typeWeights?.item, d.typeWeights.item), sand: wnum(src.typeWeights?.sand, d.typeWeights.sand) },
-    itemRarityWeights: per('itemRarityWeights', wnum),
-    sandRarityWeights: per('sandRarityWeights', wnum),
+    sandPercent: Math.round(Math.min(100, wnum(src.sandPercent ?? oldSand, d.sandPercent)) * 10) / 10,
+    rarityPercent: Object.fromEntries(RARITIES.map((r) => [r, Math.round(Math.min(100, wnum(rar?.[r], d.rarityPercent[r])) * 10) / 10])),
     sandAmounts: per('sandAmounts', (v, fb) => num(v, 0, 10000000, fb)),
     dupSand: per('dupSand', (v, fb) => num(v, 0, 10000000, fb)),
   };
 }
+// そのガチャの確率設定（ガチャ専用の設定があればそれ、なければ共通設定）
+export const gachaRates = (gc) => (gc?.rates ? mergeGacha({ ...current.gacha, ...gc.rates }) : current.gacha);
 
 export const mergeMaintenance = (src = {}) => ({ on: !!src.on, message: String(src.message || '').slice(0, 200) });
 
@@ -51,6 +55,8 @@ function mergeSeason(src = {}) {
     number: num(src.number, 1, 100000, d.number),
     startAt: Number.isFinite(Number(src.startAt)) ? Math.max(0, Math.round(Number(src.startAt))) : d.startAt,
     resetPt: num(src.resetPt, 0, 6999, d.resetPt),
+    resetMode: src.resetMode === 'demote' ? 'demote' : 'full',
+    demoteSteps: num(src.demoteSteps, 0, 30, d.demoteSteps),
   };
 }
 

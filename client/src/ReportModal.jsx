@@ -57,9 +57,10 @@ export default function ReportModal({ user, roomId, players, initialUid, onClose
 }
 
 const QREASONS = [['difficulty', '難易度がおかしい'], ['irrelevant', '看護に関係ない'], ['wrong', '答えが間違っている']];
+const QREASONS_PROFILE = [...QREASONS, ['tag', 'タグがおかしい'], ['explanation', '解説が間違っている']]; // プロフィールの「間違えた問題」からだけ選べる
 
-// 不適切だと思った問題の通報（理由は3種類）
-export function QuestionReportModal({ user, question, onClose }) {
+// 不適切だと思った問題の通報（理由は3種類。プロフィールからはタグ・解説も選べて5種類）
+export function QuestionReportModal({ user, question, onClose, fromProfile = false }) {
   const [reason, setReason] = useState('');
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -80,7 +81,7 @@ export function QuestionReportModal({ user, question, onClose }) {
         </div>
         <p className="text-xs text-slate-300 mb-3 rounded bg-black/30 p-2 line-clamp-3">{question.question}</p>
         <div className="space-y-2 mb-3">
-          {QREASONS.map(([k, label]) => (
+          {(fromProfile ? QREASONS_PROFILE : QREASONS).map(([k, label]) => (
             <label key={k} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer ${reason === k ? 'bg-sky-800' : 'bg-[#0e1013]'}`}>
               <input type="radio" name="qreason" checked={reason === k} onChange={() => setReason(k)} />{label}
             </label>

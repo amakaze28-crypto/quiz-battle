@@ -11,6 +11,7 @@ import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
 import { cardLayouts, frameFits } from './cardlayouts.js';
 import { maintenance } from './settings.js';
+import { gachaRates } from './settings.js';
 import { listGachas, poolFor, isActive, costOf, NORMAL_ID, readBanner } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
 import * as badges from './badges.js';
@@ -134,7 +135,7 @@ export function mountApi(app) {
 
   // ---- フレンド ----
   const friendView = (f) => ({
-    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', cardId: f.cardId || 'none', bannerId: f.bannerId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto', badgeInfo: badges.equippedBadge(f),
+    uid: f.uid, displayName: f.displayName, iconId: f.iconId || 'default', frameId: f.frameId || 'none', cardId: f.cardId || 'none', bannerId: f.cardId || 'none', charId: f.charId || 'char-m', badgeId: f.badgeId || 'auto', badgeInfo: badges.equippedBadge(f),
     rank: rankInfo(f, getEmperorSet()), rating: ratingValue(f), pt: f.pt || 0, mr: f.mr ?? null, isMaster: !!f.isMaster, online: presence.isOnline(f.uid), lastLoginAt: f.lastLoginAt || 0,
   });
   const viewList = async (uids) => (await Promise.all(uids.map((id) => store.getUser(id)))).filter(Boolean).map(friendView);
@@ -203,8 +204,8 @@ export function mountApi(app) {
   }));
 
   // ---- ショップ / ガチャ / 装備 ----
-  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, inGacha: !!i.inGacha });
-  const SLOTS = { icon: 'iconId', frame: 'frameId', card: 'cardId', banner: 'bannerId', character: 'charId' };
+  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, free: !!i.free, inGacha: !!i.inGacha, createdAt: i.createdAt || 0 });
+  const SLOTS = { icon: 'iconId', frame: 'frameId', card: 'cardId', character: 'charId' };
   // 同梱の初期アイテム（画像ファイル）。slot ごとの装備可能ID
   const BUILTIN = { icon: ['default', 'default2'], character: ['char-m', 'char-f'] };
   const RANK = Object.fromEntries(RARITIES.map((x, i) => [x, i]));
@@ -214,18 +215,28 @@ export function mountApi(app) {
     const u = await fresh(req);
     const all = await store.colList('items');
     const items = all
-      .filter((i) => i.onShop || u.ownedItems.includes(i.id))
+      .filter((i) => i.onShop || i.free || u.ownedItems.includes(i.id))
       .sort((a, b) => (RANK[rarityOf(a)] - RANK[rarityOf(b)]) || (a.price - b.price) || (a.createdAt - b.createdAt))
-      .map((i) => ({ ...meta(i), owned: u.ownedItems.includes(i.id) }));
+      .map((i) => ({ ...meta(i), owned: !!i.free || u.ownedItems.includes(i.id) }));
     const base = (id, name, type) => ({ id, name, type, rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
     items.unshift(base('default', '初期アイコン（男性）', 'icon'), base('default2', '初期アイコン（女性）', 'icon'), base('char-m', '初期キャラ（男性）', 'character'), base('char-f', '初期キャラ（女性）', 'character'));
-    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, card: u.cardId || 'none', banner: u.bannerId, character: u.charId }, items });
+    res.json({ sand: u.sand, coins: u.coins, equipped: { icon: u.iconId, frame: u.frameId, card: u.cardId || 'none', character: u.charId }, items });
+  }));
+
+  // 使える戦闘BGM（みんなが使える曲 + 買った曲）。音源は /sound/bgm_<id>
+  r.get('/bgm/mine', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const snd = Object.fromEntries((await store.colList('sounds')).map((d) => [d.id, d.updatedAt || 0]));
+    const list = (await store.colList('items')).filter((i) => i.type === 'bgm' && (i.free || u.ownedItems.includes(i.id)) && snd[`bgm_${i.id}`] !== undefined)
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((i) => ({ id: i.id, name: i.name, slot: `bgm_${i.id}`, v: snd[`bgm_${i.id}`] }));
+    res.json({ tracks: list });
   }));
 
   r.post('/shop/buy', wrap(async (req, res) => {
     const u = await fresh(req);
     const item = await store.colGet('items', String(req.body.itemId || ''));
     if (!item || !item.onShop) return res.status(404).json({ error: 'この商品は購入できません' });
+    if (item.free) return res.status(400).json({ error: 'すでに持っています' });
     if (u.ownedItems.includes(item.id)) return res.status(400).json({ error: 'すでに持っています' });
     if (u.sand < item.price) return res.status(400).json({ error: '魔法の砂が足りません' });
     await store.updateUser(u.uid, { sand: u.sand - item.price, ownedItems: [...u.ownedItems, item.id] });
@@ -276,22 +287,21 @@ export function mountApi(app) {
   };
   const gachaMeta = (g, now) => ({ id: g.id, name: g.name, kind: g.kind, cost: costOf(g), startAt: g.startAt, endAt: g.endAt, hasBanner: !!g.banner, active: isActive(g, now) });
 
-  // 提供割合（表示用）。出るアイテムがいないレア度は除いて按分し直す
+  // 提供割合。まず「砂かアイテムか」(sandPercent) を決め、次にレア度を rarityPercent で決める。
+  // アイテムは、出せるアイテムがいないレア度を除いて按分し直す（全部いなければ砂だけ）
   function rates(g, pool) {
-    const tw = g.typeWeights;
-    const availR = RARITIES.filter((x) => g.itemRarityWeights[x] > 0 && pool.some((i) => i.rarity === x));
-    const itemOn = availR.length > 0 && tw.item > 0;
-    const sandOn = tw.sand > 0 || !itemOn;
-    const tItem = itemOn ? tw.item : 0;
-    const tSand = sandOn ? (itemOn ? tw.sand : 1) : 0;
-    const tot = tItem + tSand || 1;
-    const iw = availR.reduce((s, x) => s + g.itemRarityWeights[x], 0) || 1;
-    const sw = RARITIES.reduce((s, x) => s + g.sandRarityWeights[x], 0) || 1;
+    const pc = g.rarityPercent;
+    const availR = RARITIES.filter((x) => pc[x] > 0 && pool.some((i) => i.rarity === x));
+    const itemOn = availR.length > 0 && g.sandPercent < 100;
+    const sandShare = itemOn ? g.sandPercent / 100 : 1;
+    const itemShare = 1 - sandShare;
+    const iw = availR.reduce((s, x) => s + pc[x], 0) || 1;
+    const sw = RARITIES.reduce((s, x) => s + pc[x], 0);
     const pct = (v) => Math.round(v * 10000) / 100;
     return {
-      item: pct(tItem / tot), sand: pct(tSand / tot),
-      itemRarity: Object.fromEntries(RARITIES.map((x) => [x, availR.includes(x) ? pct((tItem / tot) * (g.itemRarityWeights[x] / iw)) : 0])),
-      sandRarity: Object.fromEntries(RARITIES.map((x) => [x, pct((tSand / tot) * (g.sandRarityWeights[x] / sw))])),
+      item: pct(itemShare), sand: pct(sandShare),
+      itemRarity: Object.fromEntries(RARITIES.map((x) => [x, availR.includes(x) ? pct(itemShare * (pc[x] / iw)) : 0])),
+      sandRarity: Object.fromEntries(RARITIES.map((x) => [x, sw > 0 ? pct(sandShare * (pc[x] / sw)) : (x === 'common' ? pct(sandShare) : 0)])),
     };
   }
 
@@ -311,7 +321,7 @@ export function mountApi(app) {
     const u = await fresh(req);
     const gc = await getGacha(req.query.id);
     if (!gc) return res.status(404).json({ error: 'このガチャは終了しました' });
-    const g = settings().gacha;
+    const g = gachaRates(gc);
     const pool = await poolFor(gc);
     const owned = new Set(u.ownedItems);
     const brief = (i) => ({ ...meta(i), owned: owned.has(i.id) });
@@ -329,7 +339,7 @@ export function mountApi(app) {
     const u = await fresh(req);
     const gc = await getGacha(req.body.id);
     if (!gc) return res.status(400).json({ error: 'このガチャは終了しました' });
-    const g = settings().gacha;
+    const g = gachaRates(gc);
     const total = costOf(gc) * count;
     if (u.coins < total) return res.status(400).json({ error: `コインが足りません（${total}コイン必要）` });
     const pool = await poolFor(gc);
@@ -446,16 +456,24 @@ export function mountApi(app) {
     // 分野が1つだけのときは、正答率で得意/苦手を決める。複数あるときは、正答率の高い順に得意・低い順に苦手
     const strong = k === 1 ? cats.filter((c) => c.rate >= 50) : cats.slice(0, Math.min(3, Math.ceil(k / 2)));
     const weak = k === 1 ? cats.filter((c) => c.rate < 50) : cats.slice(strong.length).slice(-3).reverse();
-    res.json({ cats, strong, weak, wrong: (u.wrongQs || []).slice(0, 20) });
+    // 間違えた問題に、現在のタグ（分野）を付ける（古い記録にもつく。問題が消えていたら記録時のもの）
+    const qmap = new Map((await store.listQuestions()).map((q) => [q.id, q]));
+    const wrong = (u.wrongQs || []).slice(0, 20).map((w) => { const q = qmap.get(w.id); return { ...w, cat: q ? (q.category || q.file || '') : (w.cat || '') }; });
+    res.json({ cats, strong, weak, wrong });
   }));
 
   // ---- 問題の通報（難易度がおかしい / 看護に関係ない / 答えが間違っている） ----
-  const QREASONS = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+  const QREASONS = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている', tag: 'タグがおかしい', explanation: '解説が間違っている' };
+  const PROFILE_ONLY = ['tag', 'explanation']; // タグ・解説の通報は、プロフィールの「間違えた問題」からだけ
   r.post('/report-question', wrap(async (req, res) => {
     const reason = String(req.body.reason || '');
     const qid = String(req.body.questionId || '').slice(0, 80);
     if (!QREASONS[reason]) return res.status(400).json({ error: '通報理由を選んでください' });
     if (!qid) return res.status(400).json({ error: '問題が指定されていません' });
+    if (PROFILE_ONLY.includes(reason)) {
+      const u = await fresh(req);
+      if (!(u.wrongQs || []).some((w) => w.id === qid)) return res.status(400).json({ error: 'タグ・解説の通報は、プロフィールの「間違えた問題」からできます' });
+    }
     // 同じ人が同じ問題を同じ理由で何度送っても1件にまとまる
     await store.colSet('qreports', `${req.me.uid}_${qid}_${reason}`, {
       qid, reason, fromUid: req.me.uid, createdAt: Date.now(), resolved: false,

@@ -276,7 +276,7 @@ export function mountAdmin(app, { io, matchmaker }) {
   r.put('/settings', wrap(async (req, res) => res.json(await saveSettings(req.body || {}))));
 
   // ---- アイテム（アイコン・フレーム・バナー）。画像はブラウザ側で縮小したdata URLを想定 ----
-  const TYPES = ['icon', 'frame', 'card', 'banner', 'character'];
+  const TYPES = ['icon', 'frame', 'card', 'character', 'bgm'];
   const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
   const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 700_000;
   r.get('/items', wrap(async (_req, res) => {
@@ -288,8 +288,15 @@ export function mountAdmin(app, { io, matchmaker }) {
     const { type, rarity } = req.body;
     if (!name) return res.status(400).json({ error: '名前を入力してください' });
     if (!TYPES.includes(type) || !RAR.includes(rarity)) return res.status(400).json({ error: '種類とレア度を選んでください' });
-    if (!okImage(req.body.image)) return res.status(400).json({ error: '画像(PNG/JPEG/WebP・約500KB未満)を指定してください' });
-    const id = await store.colAdd('items', { name, type, rarity, price, image: req.body.image, onShop: !!req.body.onShop, inGacha: !!req.body.inGacha, createdAt: Date.now() });
+    const isBgm = type === 'bgm';
+    if (!isBgm && !okImage(req.body.image)) return res.status(400).json({ error: '画像(PNG/JPEG/WebP・約500KB未満)を指定してください' });
+    if (isBgm && !/^data:(audio\/|video\/mp4|application\/octet-stream)/i.test(req.body.audio || '')) return res.status(400).json({ error: '音声ファイル(mp3 / wav / ogg / m4a)を選んでください' });
+    const id = await store.colAdd('items', isBgm
+      ? { name, type, rarity, price, onShop: !!req.body.onShop, free: !!req.body.free, inGacha: false, createdAt: Date.now() }
+      : { name, type, rarity, price, image: req.body.image, onShop: !!req.body.onShop, inGacha: !!req.body.inGacha, createdAt: Date.now() });
+    if (isBgm) {
+      try { await sounds.saveSound(`bgm_${id}`, req.body.audioName || name, req.body.audio); } catch (e) { await store.colDel('items', id); return res.status(400).json({ error: e.message }); }
+    }
     // 追加時に調整した位置（バナー=配置、アイコンフレーム=位置と大きさ）も一緒に保存
     if (type === 'card' && req.body.layout) { const L = cleanLayout(req.body.layout); if (L) await store.colSet('cardlayouts', id, L); }
     if (type === 'frame' && req.body.fit) { const F = cleanFit(req.body.fit); if (F) await store.colSet('framefits', id, F); }
@@ -302,7 +309,13 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (RAR.includes(req.body.rarity)) patch.rarity = req.body.rarity;
     if (typeof req.body.onShop === 'boolean') patch.onShop = req.body.onShop;
     if (typeof req.body.inGacha === 'boolean') patch.inGacha = req.body.inGacha;
-    if (!(await store.colGet('items', req.params.id))) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    if (typeof req.body.free === 'boolean') patch.free = req.body.free;
+    const cur = await store.colGet('items', req.params.id);
+    if (!cur) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    if (cur.type === 'bgm') patch.inGacha = false;
+    if (cur.type === 'bgm' && req.body.audio) {
+      try { await sounds.saveSound(`bgm_${req.params.id}`, req.body.audioName || cur.name, req.body.audio); } catch (e) { return res.status(400).json({ error: e.message }); }
+    }
     await store.colSet('items', req.params.id, patch);
     res.json({ ok: true });
   }));
@@ -310,8 +323,10 @@ export function mountAdmin(app, { io, matchmaker }) {
   // アイテムの削除（画像・位置調整も消す）。持っているユーザーの持ち物からは消さず、装備中なら初期の見た目に戻る
   r.delete('/items/:id', wrap(async (req, res) => {
     const id = req.params.id;
-    if (!(await store.colGet('items', id))) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    const it = await store.colGet('items', id);
+    if (!it) return res.status(404).json({ error: 'アイテムが見つかりません' });
     await store.colDel('items', id);
+    if (it.type === 'bgm') await sounds.deleteSound(`bgm_${id}`);
     if (await store.colGet('cardlayouts', id)) await store.colDel('cardlayouts', id);
     if (await store.colGet('framefits', id)) await store.colDel('framefits', id);
     res.json({ ok: true });
@@ -421,7 +436,7 @@ export function mountAdmin(app, { io, matchmaker }) {
   }));
 
   // ---- 問題の通報（問題ごとに集計） ----
-  const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+  const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている', tag: 'タグがおかしい', explanation: '解説が間違っている' };
   r.get('/qreports', wrap(async (_req, res) => {
     const [reps, qs] = await Promise.all([store.colList('qreports'), store.listQuestions()]);
     const byId = new Map(qs.map((q) => [q.id, q]));

@@ -1,5 +1,5 @@
 import * as store from './store.js';
-import { settings, RARITIES } from './settings.js';
+import { settings, RARITIES, mergeGacha } from './settings.js';
 
 // ガチャの定義（管理画面で編集）。通常ガチャは必ず1つある（未設定ならデフォルトを使う）
 export const NORMAL_ID = 'normal';
@@ -17,6 +17,7 @@ export function normalizeGacha(id, d = {}) {
     order: Number(d.order) || 0,
     itemIds: Array.isArray(d.itemIds) ? d.itemIds.filter((x) => typeof x === 'string') : [],
     setIds: Array.isArray(d.setIds) ? d.setIds.filter((x) => typeof x === 'string') : [],
+    rates: d.rates && typeof d.rates === 'object' ? (({ cost, ...r }) => r)(mergeGacha({ ...settings().gacha, ...d.rates })) : null, // null = 共通の確率設定を使う
     createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0,
   };
 }
@@ -37,7 +38,7 @@ export async function poolFor(g) {
   const [items, sets] = await Promise.all([store.colList('items'), store.colList('sets')]);
   const idSet = new Set(g.itemIds); const sIdSet = new Set(g.setIds);
   const normal = g.kind === 'normal';
-  const its = items.filter((i) => RARITIES.includes(i.rarity) && (idSet.has(i.id) || (normal && i.inGacha)));
+  const its = items.filter((i) => i.type !== 'bgm' && RARITIES.includes(i.rarity) && (idSet.has(i.id) || (normal && i.inGacha)));
   const byId = new Map(items.map((i) => [i.id, i]));
   const ss = sets
     .filter((s) => sIdSet.has(s.id) || (normal && s.inGacha !== false))

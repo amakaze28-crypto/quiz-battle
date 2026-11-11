@@ -19,7 +19,7 @@ export function Avatar({ iconId, frameId, size = 40, className = '', fit, frameS
 
 export const Banner = ({ bannerId, className = '', style }) => (
   bannerId && bannerId !== 'none'
-    ? <img src={itemSrc(bannerId)} alt="" draggable={false} className={`object-cover ${className}`} style={style} />
+    ? <img src={itemSrc(bannerId)} alt="" draggable={false} className={`object-cover ${className}`} style={{ objectPosition: '50% 32%', ...style }} />
     : null
 );
 

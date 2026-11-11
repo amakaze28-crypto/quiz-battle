@@ -58,7 +58,7 @@ export function Reports({ user, onCount }) {
 }
 
 /* ---------------- 問題の通報（問題ごとの集計） ---------------- */
-const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている' };
+const QLABEL = { difficulty: '難易度がおかしい', irrelevant: '看護に関係ない', wrong: '答えが間違っている', tag: 'タグがおかしい', explanation: '解説が間違っている' };
 export function QuestionReports({ user, onCount }) {
   const { data, error, load } = useAdminLoad(user, '/qreports', 'reports');
   useEffect(() => { if (data) onCount?.(data.filter((r) => r.open > 0).length); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -160,11 +160,7 @@ export async function fileToImage(file, type) {
     for (const q of [0.9, 0.82, 0.74, 0.66, 0.56, 0.46]) { out = c.toDataURL('image/webp', q); if (out.length < 650_000) break; }
     return out;
   }
-  if (type === 'banner') {
-    c.width = 800; c.height = 200;
-    const r = Math.min(bmp.width / 4, bmp.height); const sw = r * 4;
-    ctx.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - r) / 2, sw, r, 0, 0, 800, 200);
-  } else if (type === 'character') { // 全身キャラ: 透過を保って縦長(最大700x1100)に収める
+  if (type === 'character') { // 全身キャラ: 透過を保って縦長(最大700x1100)に収める
     const k = Math.min(700 / bmp.width, 1100 / bmp.height, 1);
     c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
@@ -201,7 +197,7 @@ export function ItemsAdmin({ user }) {
     catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { alert(e.message); } };
-  const shown = data?.filter((i) => filter === 'all' || i.type === filter);
+  const shown = data?.filter((i) => i.type !== 'bgm' && (filter === 'all' || i.type === filter)); // 戦闘BGMは「音源」タブで管理
 
   return (
     <div>
@@ -213,7 +209,7 @@ export function ItemsAdmin({ user }) {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          {f.image ? <img src={f.image} alt="" className={f.type === 'banner' ? 'w-40 h-10 rounded object-cover' : f.type === 'character' ? 'h-24 object-contain' : 'w-16 h-16 object-cover ' + (f.type === 'icon' ? 'rounded-full' : '')} /> : <div className="w-16 h-16 rounded bg-slate-700" />}
+          {f.image ? <img src={f.image} alt="" className={f.type === 'character' ? 'h-24 object-contain' : 'w-16 h-16 object-cover ' + (f.type === 'icon' ? 'rounded-full' : '')} /> : <div className="w-16 h-16 rounded bg-slate-700" />}
           <input type="file" accept="image/*" onChange={pick} className="text-sm" />
         </div>
         {f.image && f.type === 'card' && <DraftCardEditor user={user} image={f.image} L={layout} setL={setLayout} />}
@@ -223,7 +219,6 @@ export function ItemsAdmin({ user }) {
           {f.type === 'card' && 'バナー（プレイヤーカード全体の台紙・縦長の画像）です。画像を選ぶと、この画面でアイコン等の位置を調整できます（追加後も、一覧の「位置調整」から変更できます）。'}
           {f.type === 'frame' && 'アイコンに重ねる枠です。中央が透明な正方形のPNG／WebPを選んでください（透過は保たれます）。'}
           {f.type === 'character' && '全身の立ち絵（背景透過のPNG/WebP推奨・縦長）。プレイヤーカードに表示されます。'}
-          {f.type === 'banner' && '横長(4:1)の画像がおすすめです。800×200に整えます。'}
         </p>
         <input className={input} placeholder="名前" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <div className="flex flex-wrap gap-1.5">
@@ -252,7 +247,7 @@ export function ItemsAdmin({ user }) {
         {shown?.map((i) => (
           <li key={i.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
             <button onClick={() => { setViewEdit(false); setView(i); }} className="flex items-center gap-3 min-w-0 flex-1 text-left" title="タップで見た目を確認">
-  {i.type === 'banner' ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="w-28 h-7 rounded object-cover" /> : (i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
+  {(i.type === 'character' || i.type === 'card') ? <img src={`${SERVER_URL}/item/${i.id}`} alt="" className="h-12 w-10 object-contain" /> : <Avatar iconId={i.type === 'icon' ? i.id : 'default'} frameId={i.type === 'frame' ? i.id : 'none'} size={48} />}
             <div className="min-w-0 flex-1">
               <div className="font-semibold truncate flex items-center gap-2">{i.name}<RarityTag rarity={i.rarity} /><span className="text-xs text-slate-400">{TYPE_LABEL[i.type]}</span></div>
               <Sand n={i.price} size={18} className="text-amber-300 text-sm" />
@@ -290,14 +285,6 @@ export function SettingsAdmin({ user }) {
   const save = async () => {
     try { setS(await adminApi(user, '/settings', { method: 'PUT', body: s })); setMsg({ ok: true, text: '保存しました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
   };
-  const g = s.gacha;
-  const setG = (patch) => setS({ ...s, gacha: { ...g, ...patch } });
-
-  // 比率の合計を表示（合計が100でなくても按分されます）
-  const sum = (o) => RARITIES.reduce((t, x) => t + Number(o[x] || 0), 0);
-  const itemSum = sum(g.itemRarityWeights); const sandSum = sum(g.sandRarityWeights);
-  const typeSum = Number(g.typeWeights.item) + Number(g.typeWeights.sand);
-
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <MaintenanceCard user={user} />
@@ -324,27 +311,7 @@ export function SettingsAdmin({ user }) {
 
       <div className={card}>
         <h2 className="font-bold mb-1">ガチャ</h2>
-        <Field label="1回あたりのコイン"><Num value={g.cost} onChange={(v) => setG({ cost: v })} /></Field>
-        <p className="text-xs text-slate-400 mt-2">何が出るか（比率。合計が100でなくても按分されます）</p>
-        <Field label="アイテム"><Num value={g.typeWeights.item} onChange={(v) => setG({ typeWeights: { ...g.typeWeights, item: v } })} /></Field>
-        <Field label="魔法の砂"><Num value={g.typeWeights.sand} onChange={(v) => setG({ typeWeights: { ...g.typeWeights, sand: v } })} /></Field>
-        <p className="text-xs text-slate-500">→ アイテム {typeSum ? Math.round((g.typeWeights.item / typeSum) * 1000) / 10 : 0}% / 砂 {typeSum ? Math.round((g.typeWeights.sand / typeSum) * 1000) / 10 : 0}%</p>
-
-        <table className="w-full text-sm mt-4">
-          <thead><tr className="text-slate-400 text-left"><th className="pb-1">レア度</th><th>アイテム比率</th><th>砂の比率</th><th>砂の量</th><th>被り時の砂</th></tr></thead>
-          <tbody>
-            {RARITIES.map((x) => (
-              <tr key={x}>
-                <td className="py-1 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
-                <td><Num w="w-16" value={g.itemRarityWeights[x]} onChange={(v) => setG({ itemRarityWeights: { ...g.itemRarityWeights, [x]: v } })} /></td>
-                <td><Num w="w-16" value={g.sandRarityWeights[x]} onChange={(v) => setG({ sandRarityWeights: { ...g.sandRarityWeights, [x]: v } })} /></td>
-                <td><Num w="w-20" value={g.sandAmounts[x]} onChange={(v) => setG({ sandAmounts: { ...g.sandAmounts, [x]: v } })} /></td>
-                <td><Num w="w-20" value={g.dupSand[x]} onChange={(v) => setG({ dupSand: { ...g.dupSand, [x]: v } })} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="text-xs text-slate-500 mt-1">合計 アイテム{itemSum} / 砂{sandSum}。レア度ごとの実際の確率は、ガチャ画面の「提供割合」で確認できます。</p>
+        <p className="text-sm text-slate-300">ガチャのコスト・確率・砂の量は、「ガチャ」タブに移しました（共通の設定と、ガチャごとの専用設定を、そこで変えられます）。</p>
       </div>
 
       <div className="lg:col-span-2">

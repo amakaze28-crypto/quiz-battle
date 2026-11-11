@@ -1,5 +1,5 @@
 import { cfg } from './config.js';
-import { computeDeltas, assignPlaces, questionPoints, applyDelta } from './rating.js';
+import { computeDeltas, assignPlaces, questionPoints, applyDelta, streakMult } from './rating.js';
 import { rankInfo } from './rank.js';
 import * as store from './store.js';
 import * as missions from './missions.js';
@@ -129,7 +129,7 @@ export class Room {
         p.catAcc = p.catAcc || {}; p.wrongList = p.wrongList || [];
         const e = p.catAcc[cat] || (p.catAcc[cat] = { n: 0, c: 0 });
         e.n += 1; if (a?.correct) e.c += 1;
-        if (!a?.correct) p.wrongList.push({ id: qq.id, question: qq.question, choices: qq.choices, answer: qq.answer, myChoice: a ? a.choice : null, explanation: qq.explanation || '', at: Date.now() });
+        if (!a?.correct) p.wrongList.push({ id: qq.id, question: qq.question, choices: qq.choices, answer: qq.answer, myChoice: a ? a.choice : null, explanation: qq.explanation || '', cat, at: Date.now() });
       }
       if (a) { p.stat.ans += 1; p.stat.time += Math.min(a.adj / 1000, limit); if (a.correct) p.stat.correct += 1; }
       if (a) {
@@ -169,7 +169,14 @@ export class Room {
     const places = assignPlaces(this.players.map((p) => p.score));
     this.players.forEach((p, i) => { p.place = places[i]; p.tie = places.filter((x) => x === places[i]).length > 1; });
     const deltas = computeDeltas(this.players.map((p) => ({ score: p.score, rating: p.rating })));
-    this.players.forEach((p, i) => { p.delta = deltas[i]; });
+    this.players.forEach((p, i) => { p.delta = deltas[i]; p.streakMult = 1; });
+    // 連勝ボーナス（プレイヤーのみ）。ポイント上限で丸めた後に掛ける
+    for (const p of this.players) {
+      if (p.isBot || p.delta <= 0) continue;
+      const u = await store.getUser(p.uid).catch(() => null);
+      const m = streakMult((u?.streak || 0) + 1);
+      if (m > 1) { p.streakMult = m; p.delta = Math.round(p.delta * m); }
+    }
 
     try {
       for (const p of this.players) {
@@ -181,7 +188,7 @@ export class Room {
         next.games = (fresh.games || 0) + 1;
         next.wins = (fresh.wins || 0) + (won ? 1 : 0);
         next.losses = (fresh.losses || 0) + (p.delta < 0 ? 1 : 0);
-        next.streak = won ? (fresh.streak || 0) + 1 : p.delta < 0 ? 0 : (fresh.streak || 0);
+        next.streak = won ? (fresh.streak || 0) + 1 : 0; // レートが増えた時だけ継続。変動なし・減少は途切れる
         next.bestStreak = Math.max(fresh.bestStreak || 0, next.streak);
         next.seasonGames = (fresh.seasonGames || 0) + 1;
         next.missions = missions.recordMatch(fresh, won);

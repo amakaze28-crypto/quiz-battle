@@ -52,3 +52,24 @@ export default function Hud({ profile, summary, onMenu, go }) {
     </>
   );
 }
+
+// ホーム・ガチャ共通の上部ステータス枠（背景に絵柄がないので、コードで描く）
+export function HudFrame({ profile }) {
+  return (
+    <>
+        {/* 背景に絵柄がないので、上部のステータス枠はここで描く */}
+        <Box x={22} y={30} w={760} h={280} className="rounded-[3.2cqw]"
+          style={{ background: 'linear-gradient(180deg,rgba(16,36,78,.82),rgba(8,20,48,.82))', border: `${cq(4)} solid #c9a24a`, boxShadow: '0 6px 22px rgba(0,0,0,.4), inset 0 0 0 2px rgba(255,236,170,.18)', backdropFilter: 'blur(3px)' }} />
+        <Box x={40} y={48} w={184} h={184} className="rounded-full" style={{ border: `${cq(7)} solid #e0b64f`, boxShadow: '0 0 14px rgba(255,214,120,.5), inset 0 0 8px rgba(0,0,0,.5)' }} />
+        {profile && <Box x={26} y={234} w={210} h={44} className="flex items-center justify-center text-center" style={{ fontSize: fs(profile.displayName.length > 8 ? 22 : 28), fontWeight: 800, color: '#fff4d2', textShadow: '0 2px 5px #000', whiteSpace: 'nowrap', overflow: 'hidden' }}>{profile.displayName}</Box>}
+        {profile?.season && <Box x={262} y={42} w={480} h={40} className="flex items-center" style={{ fontSize: fs(25), fontWeight: 700, color: '#ffe9a8', textShadow: '0 1px 4px #000' }}>シーズン{profile.season.number}　あと{Math.max(0, Math.ceil((profile.season.endAt - Date.now()) / 86400000))}日</Box>}
+        <Box x={742} y={92} w={30} h={96} className="grid place-items-center pointer-events-none" style={{ fontSize: fs(46), color: '#e0b64f', fontWeight: 900 }}>›</Box>
+        {profile?.rank && !profile.isMaster && (
+          <>
+            <Box x={433} y={164} w={288} h={17} className="rounded-full" style={{ background: 'rgba(3,10,28,.75)', border: `${cq(2)} solid rgba(201,162,74,.6)` }} />
+            <Box x={433} y={189} w={140} h={32} className="flex items-center" style={{ fontSize: fs(19), color: "#cfd9f0", whiteSpace: 'nowrap' }}>次のランクまで</Box>
+          </>
+        )}
+    </>
+  );
+}

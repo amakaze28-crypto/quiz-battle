@@ -16,6 +16,7 @@ export default function AccountMenu({ open, onClose, anchor = 'right', profile, 
           <Plate className={`fixed z-40 top-[72px] ${anchor === 'right' ? 'right-3' : 'left-3'} w-52 shadow-xl`}>
             <div className="px-3 py-2 text-sm text-[#f6e4b0] border-b border-white/10 truncate">{profile?.displayName}</div>
             <Item onClick={() => nav('profile')}>プロフィール</Item>
+            <Item onClick={() => nav('guide')}>遊び方</Item>
             <Item onClick={() => nav('settings')}>設定</Item>
             {profile?.isAdmin && (adminView ? <Item onClick={() => nav('home')}>プレイ画面へ</Item> : <Item onClick={() => nav('admin')}>管理者画面</Item>)}
             <button onClick={() => { onClose(); setConfirm(true); }} className="w-full text-left px-3 py-3 text-red-400 font-bold hover:bg-white/10 border-t border-white/10">

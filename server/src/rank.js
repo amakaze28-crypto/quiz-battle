@@ -40,3 +40,17 @@ export function rankInfo(p, emperorSet) {
   const sub = 5 - Math.floor((p.pt - t.start) / t.width);
   return { key: t.key, label: `${t.name}${sub}`, tier: t.name, sub, mr: null, subStart: start, nextAt: start + t.width };
 }
+
+// ---------- シーズン切替時の「N段階降格」 ----------
+// 1段階 = サブランク1つ（ブロンズ3 → ブロンズ4）。ティアをまたいで数える（ブロンズ5 の次はルーキー1）。
+// マスター以上はダイヤ1の1つ上として数える（1段階降格でダイヤ1）。降格後は、そのサブランクの一番下のptから始まる。
+export const SUB_LEVELS = TIERS.length * 5; // 30（0=ルーキー5 … 29=ダイヤ1、30=マスター）
+export const subLevelOf = (p) => (p.isMaster ? SUB_LEVELS : tierIndex(p.pt) * 5 + Math.floor((p.pt - TIERS[tierIndex(p.pt)].start) / TIERS[tierIndex(p.pt)].width));
+export const ptAtLevel = (L) => { const t = TIERS[Math.floor(L / 5)]; return t.start + (L % 5) * t.width; };
+export const subLevelLabel = (L) => (L >= SUB_LEVELS ? 'マスター' : `${TIERS[Math.floor(L / 5)].name}${5 - (L % 5)}`);
+/** steps段階降格した後の { pt, mr, isMaster }。steps=0 のときは空（そのまま） */
+export function demotedState(p, steps) {
+  if (steps <= 0) return {};
+  const L = Math.max(0, subLevelOf(p) - steps);
+  return { pt: ptAtLevel(L), mr: null, isMaster: false };
+}

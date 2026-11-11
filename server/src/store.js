@@ -134,7 +134,7 @@ export async function findUserByFriendCode(code) {
 }
 
 // 削除されたアイテムを装備したままのユーザーは、初期の見た目に戻す（画像が出なくなるのを防ぐ）
-const EQUIP = [['iconId', ['default', 'default2'], 'default'], ['frameId', ['none'], 'none'], ['cardId', ['none'], 'none'], ['bannerId', ['none'], 'none'], ['charId', ['char-m', 'char-f'], 'char-m']];
+const EQUIP = [['iconId', ['default', 'default2'], 'default'], ['frameId', ['none'], 'none'], ['cardId', ['none'], 'none'], ['charId', ['char-m', 'char-f'], 'char-m']];
 async function equipFixed(u) {
   const m = await iLoad();
   for (const [k, builtin, dflt] of EQUIP) if (u[k] && !builtin.includes(u[k]) && !m.where.has(u[k])) u[k] = dflt;

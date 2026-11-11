@@ -12,7 +12,6 @@ export default function Title({ maintenance, user, onStart, onLogin, onLogout, b
         <button onClick={onStart} aria-label="タップしてスタート" className="absolute inset-0 w-full h-full cursor-pointer" />
         <Hot x={40} y={1432} w={206} h={70} label="引き継ぎ" onClick={() => setModal('transfer')} />
         <Hot x={805} y={1432} w={190} h={70} label="設定" onClick={() => setModal('settings')} />
-        <Hot x={918} y={22} w={76} h={74} label="メニュー" onClick={() => setModal('settings')} />
         {maintenance?.on && (
           <Box x={80} y={930} w={864} h={250} className="flex flex-col items-center justify-center text-center pointer-events-none rounded-2xl"
             style={{ background: 'rgba(8,16,38,.82)', border: '3px solid #e2b13c', color: '#fff', textShadow: '0 2px 4px #000' }}>
