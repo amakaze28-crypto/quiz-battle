@@ -56,3 +56,25 @@ export function BackHome({ go, homeX = 922 }) {
     </>
   );
 }
+
+const chevron = <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="#f6e4b0" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg>;
+const houseIc = <svg viewBox="0 0 24 24" width="100%" height="100%" fill="#f6e4b0"><path d="M12 3.2 2.8 11.3h2.6V20h5v-5.6h3.2V20h5v-8.7h2.6z" /></svg>;
+export const searchIc = <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="#f6e4b0" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6" /><path d="m15.2 15.2 5 5" /></svg>;
+
+// 背景に絵柄がない画面用の上のバー（戻る・タイトル・ホーム）。右側には children を置ける
+export function PageHeader({ title, go, children }) {
+  const btn = { background: 'linear-gradient(180deg,#14305f,#0b1a38)', border: `${cq(2.5)} solid #c9a24a`, boxShadow: '0 3px 8px rgba(0,0,0,.45)', padding: cq(14) };
+  return (
+    <>
+      <Box x={0} y={0} w={W} h={112} style={{ background: 'linear-gradient(180deg,rgba(7,18,44,.94),rgba(10,26,60,.78))', borderBottom: `${cq(3)} solid #c9a24a` }} />
+      <Box x={16} y={18} w={84} h={76}>
+        <button onClick={() => go('home')} aria-label="戻る" className="w-full h-full rounded-xl active:scale-95 transition-transform" style={btn}>{chevron}</button>
+      </Box>
+      <Box x={118} y={18} w={420} h={76} className="flex items-center" style={{ fontSize: fs(44), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 6px #000', letterSpacing: '0.06em' }}>{title}</Box>
+      {children}
+      <Box x={922} y={18} w={86} h={76}>
+        <button onClick={() => go('home')} aria-label="ホーム" className="w-full h-full rounded-xl active:scale-95 transition-transform" style={btn}>{houseIc}</button>
+      </Box>
+    </>
+  );
+}

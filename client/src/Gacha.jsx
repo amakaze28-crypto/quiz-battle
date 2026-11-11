@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { callApi, SERVER_URL } from './api';
 import { sfx } from './audio';
 import { Stage, Box, Hot, NavHot, fs, cq } from './Stage';
-import Hud, { HudFrame } from './Hud';
-import AccountMenu from './AccountMenu';
 import ItemPreview from './ItemPreview';
 import { Coin, Sand, Dot, RarityTag } from './Parts';
 import { RARITY, RARITIES, TYPE_LABEL, itemSrc, iconSrc, charSrc } from './icons';
@@ -16,8 +14,7 @@ let doveLoad = null;
 const loadDove = () => {
   if (window.DoveGacha) return Promise.resolve();
   if (!doveLoad) doveLoad = new Promise((res, rej) => {
-    window.DOVE_GACHA_BACKGROUND = '/ui/dove-world.jpg';
-    const el = document.createElement('script'); el.src = '/dove-gacha.js'; el.onload = res; el.onerror = () => { doveLoad = null; rej(new Error('演出を読み込めませんでした')); };
+    const el = document.createElement('script'); el.src = '/dove-gacha.js?v=2.1'; el.onload = res; el.onerror = () => { doveLoad = null; rej(new Error('演出を読み込めませんでした')); };
     document.head.append(el);
   });
   return doveLoad;
@@ -124,7 +121,6 @@ function RatesModal({ info, onClose }) {
 
 export default function Gacha({ user, g, call, go, summary, onLogout }) {
   const { profile } = g;
-  const [menu, setMenu] = useState(false);
   const [list, setList] = useState([]);
   const [gid, setGid] = useState('normal');
   const [info, setInfo] = useState(null);
@@ -144,7 +140,6 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
       // 抽選・支払いはサーバーで確定済み。ここからは演出だけ
       try {
         await loadDove();
-        sfx('dove'); // 鳩が飛び立つ音
         await window.DoveGacha.play({ results: doveResults(r.results), sound: true });
       } catch (e) { console.error(e); }
       setResult(r);
@@ -169,9 +164,14 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
 
   return (
     <>
-      <Stage bg="/ui/gacha2.jpg">
-        <HudFrame profile={profile} />
-        <Hud profile={profile} summary={summary} go={go} onMenu={() => setMenu(true)} />
+      <Stage bg="/ui/friends2.jpg">
+        {/* ガチャ画面は、コインと砂の所持数だけを表示 */}
+        {profile && (
+          <>
+            <Box x={110} y={196} w={390} h={72} className="flex items-center justify-center rounded-full" style={{ fontSize: fs(38), fontWeight: 800, color: '#ffe9a8', background: 'linear-gradient(180deg,#0e2150,#081230)', border: `${cq(3)} solid #c9a24a`, boxShadow: 'inset 0 2px 6px rgba(0,0,0,.6), 0 3px 8px rgba(0,0,0,.4)' }}><Coin n={profile.coins} size={cq(50)} /></Box>
+            <Box x={524} y={196} w={390} h={72} className="flex items-center justify-center rounded-full" style={{ fontSize: fs(38), fontWeight: 800, color: '#ffe9a8', background: 'linear-gradient(180deg,#0e2150,#081230)', border: `${cq(3)} solid #c9a24a`, boxShadow: 'inset 0 2px 6px rgba(0,0,0,.6), 0 3px 8px rgba(0,0,0,.4)' }}><Sand n={profile.sand} size={cq(54)} /></Box>
+          </>
+        )}
 
         {list.length > 1 && (
           <Box x={70} y={322} w={884} h={56} className="flex gap-[1.2cqw] overflow-x-auto no-scrollbar">
@@ -194,11 +194,11 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
           ) : (
             <>
               <p style={{ fontSize: fs(54), fontWeight: 900, color: '#fff4d2', textShadow: '0 3px 8px #000', padding: '0 3cqw' }}>{cur?.name || '魔法のガチャ'}</p>
-              <div className="relative my-[2cqw]" style={{ width: '22cqw', height: '22cqw' }}>
+              <div className="relative my-[2cqw]" style={{ width: '18cqw', height: '18cqw' }}>
                 <div className="absolute inset-0 rounded-full" style={{ border: '3px dashed #e0b64f', animation: 'spin 14s linear infinite' }} />
                 <img src="/ui/sand.png" alt="" className="absolute inset-[14%] w-[72%] h-[72%] object-contain" draggable={false} />
               </div>
-              <p style={{ fontSize: fs(24), color: '#c9d6f2' }}>キャラ・アイコン・フレーム・バナー・魔法の砂が手に入る！</p>
+              <p style={{ fontSize: fs(24), color: '#c9d6f2', paddingBottom: cq(34) }}>キャラ・アイコン・フレーム・バナー・魔法の砂が手に入る！</p>
             </>
           )}
           {cur?.kind === 'limited' && <span className="absolute left-[2cqw] top-[2cqw] rounded-full px-[2.5cqw] py-[0.6cqw] font-extrabold bg-rose-600 text-white" style={{ fontSize: fs(24) }}>期間限定</span>}
@@ -214,7 +214,6 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
 
         <NavHot go={go} active="gacha" summary={summary} />
       </Stage>
-      <AccountMenu open={menu} onClose={() => setMenu(false)} anchor="left" profile={profile} go={go} onLogout={onLogout} />
       {result && <Results data={result} onClose={() => setResult(null)} />}
       {rates && info && <RatesModal info={info} onClose={() => setRates(false)} />}
     </>

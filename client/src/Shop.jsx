@@ -1,7 +1,7 @@
 import { sfx, getBattleBgm, setBattleBgm, setOwnedBgm, previewBgm, stopPreview } from './audio';
 import { useCallback, useEffect, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, BackHome, NavHot, fs, cq } from './Stage';
+import { Stage, Box, PageHeader, NavHot, fs, cq } from './Stage';
 import { Avatar, Sand, Dot, RarityTag } from './Parts';
 import ItemPreview from './ItemPreview';
 import { RARITY, RARITIES } from './icons';
@@ -20,8 +20,10 @@ export default function Shop({ user, profile, call, go, summary }) {
   const load = useCallback(async () => {
     try {
       const d = await callApi(user, '/shop'); setData(d);
-      const m = await callApi(user, '/bgm/mine'); setOwnedBgm(m.tracks); setBgmSel(getBattleBgm());
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { setMsg(e.message); return; }
+    // 戦闘BGMの一覧は別に取得（取れなくても、ショップ本体のエラーにはしない）
+    try { const m = await callApi(user, '/bgm/mine'); setOwnedBgm(m.tracks); setBgmSel(getBattleBgm()); } catch { /* サーバーが古いときなど */ }
+
   }, [user]);
   useEffect(() => () => stopPreview(), []);
   useEffect(() => { load(); }, [load, profile?.sand]);
@@ -58,11 +60,13 @@ export default function Shop({ user, profile, call, go, summary }) {
   };
 
   return (
-    <Stage bg="/ui/shop.jpg">
-      <BackHome go={go} />
-      <Box x={430} y={26} w={470} h={64} className="flex items-center justify-end pr-2 rounded-lg" style={{ fontSize: fs(34), color: '#ffe9a8', textShadow: '0 2px 6px #000' }}>
-        <Sand n={sand} size={cq(50)} />
-      </Box>
+    <Stage bg="/ui/shop2.jpg">
+      <PageHeader title="ショップ" go={go}>
+        {/* 魔法の砂の所持数（見やすいように背景つき） */}
+        <Box x={470} y={22} w={430} h={68} className="flex items-center justify-end rounded-full" style={{ fontSize: fs(38), fontWeight: 800, color: '#ffe9a8', background: 'linear-gradient(180deg,#0e2150,#081230)', border: `${cq(3)} solid #c9a24a`, boxShadow: 'inset 0 2px 6px rgba(0,0,0,.6), 0 3px 8px rgba(0,0,0,.4)', paddingRight: cq(34), gap: cq(10) }}>
+          <Sand n={sand} size={cq(50)} />
+        </Box>
+      </PageHeader>
 
       {/* 左のタブ */}
       {TABS.map(([k, label, ic, y, h]) => (

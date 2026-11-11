@@ -101,6 +101,8 @@ io.on('connection', async (socket) => {
   if (!wasOnline) { loginstats.recordLogin(uid); await badges.award(uid, { login: true }); }
   const current = await store.getUser(uid);
   socket.emit('profile', profilePayload(current, isAdmin));
+  // 対戦中に切断していたら、ログインし直した時点で自動的に対戦へ戻す
+  if (!roomsByUid.get(uid)?.reconnect(uid, socket)) socket.emit('room:none');
 
   measureRtt(socket);
   const rttTimer = setInterval(() => measureRtt(socket), 5000);
@@ -129,7 +131,7 @@ io.on('connection', async (socket) => {
     clearInterval(rttTimer);
     if (presence.remove(uid) === 0) store.updateUser(uid, { lastSeenAt: Date.now() }).catch(() => {});
     matchmaker.leave(uid);
-    roomsByUid.get(uid)?.onDisconnect(uid);
+    roomsByUid.get(uid)?.onDisconnect(uid, socket);
   });
 });
 

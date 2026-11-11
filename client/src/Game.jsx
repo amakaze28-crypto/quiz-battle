@@ -30,7 +30,7 @@ function MarkPop({ kind }) {
 }
 
 export default function Game({ g, user }) {
-  const { q, match, scores, avgTimes, secIntro, answer, conn, profile } = g;
+  const { q, match, scores, avgTimes, secIntro, answer, conn, profile, offline = [] } = g;
   const [now, setNow] = useState(performance.now());
   const [report, setReport] = useState(false);
   const [qReport, setQReport] = useState(false);
@@ -107,7 +107,10 @@ export default function Game({ g, user }) {
               {mark && (
                 <Box x={cx + 20} y={326} w={44} h={44} className={`rounded-full grid place-items-center font-bold ring-2 ring-white ${mark[1]}`} style={{ fontSize: fs(26) }}>{mark[0]}</Box>
               )}
-              <Box x={x + 18} y={372} w={180} h={32} className="flex items-center justify-center truncate" style={{ fontSize: fs(21), fontWeight: 700 }}>{p.name}</Box>
+              <Box x={x + 18} y={372} w={180} h={32} className="flex items-center justify-center truncate" style={{ fontSize: fs(21), fontWeight: 700, opacity: offline.includes(p.uid) ? 0.45 : 1 }}>{p.name}</Box>
+              {offline.includes(p.uid) && (
+                <Box x={x + 14} y={300} w={188} h={36} className="flex items-center justify-center rounded-md bg-black/60 pointer-events-none" style={{ fontSize: fs(19), fontWeight: 800, color: '#ef4444', textShadow: '0 1px 2px #000' }}>切断</Box>
+              )}
               <Box x={x + 22} y={418} w={172} h={32} className="flex items-center justify-center gap-1" style={{ fontSize: fs(21), fontWeight: 800, color: '#fde68a' }}>
                 {scores[p.uid] ?? 0}点
                 {res?.gain > 0 && <span style={{ color: q.secondary ? '#fb923c' : '#4ade80' }}>+{res.gain}{q.secondary ? '★' : ''}</span>}

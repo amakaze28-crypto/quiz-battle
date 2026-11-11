@@ -37,21 +37,21 @@ export default function Home({ g, summary, go, onLogout, user }) {
           </Box>
         )}
 
-        {/* ランクマッチ（画像ボタン）。ランキングは左上、戦闘BGMは右下 */}
+        {/* ランクマッチ（画像ボタン）。ランキングは右上、連勝リボンは左上、戦闘BGMは右下 */}
         <Box x={92} y={985} w={840} h={281}>
           <button onClick={() => { if (online) { sfx('queue'); g.joinQueue(); } }} disabled={!online} aria-label="ランクマッチ"
             className="w-full h-full active:scale-[.97] transition-transform disabled:opacity-60">
             <img src="/ui/rankmatch.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 6px 10px rgba(0,0,0,.45))' }} />
           </button>
         </Box>
-        {/* 連勝中（2連勝から）。ランクマッチの左上に、少し重ねて置く */}
+        {/* 連勝中（2連勝から）。ランクマッチの左上に、少し重ねて置く（ランキングボタンは右上へ） */}
         {profile?.streak >= 2 && (
-          <Box x={288} y={916} w={300} h={86} className="pointer-events-none">
+          <Box x={80} y={912} w={300} h={86} className="pointer-events-none">
             <img src="/ui/streak.png" alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.5))' }} />
             <div className="absolute inset-0 flex items-center justify-center" style={{ paddingLeft: '12%', paddingRight: '8%', fontSize: fs(30), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 4px #0a1a3a, 0 0 8px #0a1a3a', whiteSpace: 'nowrap' }}>🔥 {profile.streak}連勝中</div>
           </Box>
         )}
-        <Box x={70} y={922} w={206} h={55}>
+        <Box x={748} y={922} w={206} h={55}>
           <button onClick={() => go('ranking')} aria-label="ランキング" className="w-full h-full active:scale-95 transition-transform">
             <img src="/ui/ranking.png" alt="" draggable={false} className="w-full h-full object-contain" style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.55))' }} />
           </button>

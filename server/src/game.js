@@ -45,13 +45,18 @@ export class Room {
     registerRoom(this.id, this.players); // botも通報できる（ただしbotへの通報は管理者には届かない）
     this.players.forEach((p) => p.socket.join(this.id));
     this.hasBots = this.players.some((p) => p.isBot);
-    this.io.to(this.id).emit('match:found', {
+    this.startedAt = Date.now();
+    this.io.to(this.id).emit('match:found', this.foundPayload(cfg.countdownMs));
+    this.after(cfg.countdownMs, () => this.startQuestion(0));
+  }
+
+  foundPayload(countdownMs) {
+    return {
       roomId: this.id,
       total: this.questions.length,
-      countdownMs: cfg.countdownMs,
+      countdownMs,
       players: this.players.map((p) => ({ uid: p.uid, isBot: p.isBot, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
-    });
-    this.after(cfg.countdownMs, () => this.startQuestion(0));
+    };
   }
 
   // Secondaryは「問題」に付く。当たった問題は、出題の前に全員へ告知され、その問題の得点が全員2倍になる
@@ -73,10 +78,9 @@ export class Room {
       this.after(plan.delayMs, () => this.handleAnswer(p.uid, { index, choice: plan.choice }));
     }
     // 正解・解説は送らない
-    this.io.to(this.id).emit('question', {
-      index, total: this.questions.length, id: q.id, question: q.question, choices: q.choices, secondary,
-      timeLimitMs: cfg.questionTimeMs, serverTime: Date.now(),
-    });
+    this.qPayload = { index, total: this.questions.length, id: q.id, question: q.question, choices: q.choices, secondary };
+    this.lastResult = null;
+    this.io.to(this.id).emit('question', { ...this.qPayload, timeLimitMs: cfg.questionTimeMs, serverTime: Date.now() });
   }
 
   // 他の人が正解した後も、全員が解答を終えるか制限時間まで解答できる。
@@ -142,24 +146,55 @@ export class Room {
     }
 
     const q = this.questions[c.index];
-    this.io.to(this.id).emit('question:result', {
+    this.lastResult = {
       index: c.index, correctIndex: q.answer, explanation: q.explanation, results,
       scores: Object.fromEntries(this.players.map((p) => [p.uid, p.score])),
       secondary: c.secondary,
       // 平均解答時間は表示用（順位は得点だけで決まり、同点は同率）
       avgTimes: Object.fromEntries(this.players.map((p) => [p.uid, Math.round(mean(p.times) * 100) / 100])),
-    });
+    };
+    this.io.to(this.id).emit('question:result', this.lastResult);
 
     const last = c.index + 1 >= this.questions.length;
     this.after(cfg.resultPauseMs, () => (last ? this.finish() : this.startQuestion(c.index + 1)));
   }
 
-  onDisconnect(uid) {
+  // 切断。その人は未回答として扱い、残りの全員が回答したら次へ進む。戻ってこられるように、部屋はそのまま残す
+  onDisconnect(uid, socket) {
     const p = this.byUid(uid);
-    if (!p) return;
+    if (!p || p.isBot) return;
+    if (socket && p.socket !== socket) return; // 新しい接続に切り替わった後の、古い接続の切断は無視
     p.connected = false;
-    if (this.players.every((x) => !x.connected)) return this.close();
+    this.io.to(this.id).emit('player:status', { uid, connected: false });
+    // 全員いなくなったら、戻ってくる猶予(60秒)のあとに部屋を閉じる
+    if (this.players.every((x) => x.isBot || !x.connected)) { clearTimeout(this.emptyTimer); this.emptyTimer = setTimeout(() => { if (this.players.every((x) => x.isBot || !x.connected)) this.close(); }, 60_000); return; }
     if (this.cur && !this.cur.done) this.checkAllDone();
+  }
+
+  // 再接続（ログインし直したとき・通信が戻ったとき）。今の対戦の状態を、その人にだけ送り直す
+  reconnect(uid, socket) {
+    const p = this.byUid(uid);
+    if (!p || this.closed) return false;
+    p.socket = socket; p.connected = true; clearTimeout(this.emptyTimer);
+    socket.join(this.id);
+    const c = this.cur;
+    const waitMs = c ? 0 : Math.max(0, cfg.countdownMs - (Date.now() - (this.startedAt || 0)));
+    socket.emit('match:found', {
+      ...this.foundPayload(waitMs), resumed: true,
+      scores: Object.fromEntries(this.players.map((x) => [x.uid, x.score])),
+      avgTimes: Object.fromEntries(this.players.map((x) => [x.uid, Math.round(mean(x.times) * 100) / 100])),
+      offline: this.players.filter((x) => !x.isBot && !x.connected).map((x) => x.uid),
+    });
+    if (c && this.qPayload) {
+      const left = Math.max(1000, cfg.questionTimeMs - (Date.now() - c.startedAt));
+      socket.emit('question', { ...this.qPayload, timeLimitMs: c.done ? cfg.questionTimeMs : left, serverTime: Date.now() });
+      for (const uid2 of c.answers.keys()) socket.emit('player:answered', { uid: uid2 });
+      const mine = c.answers.get(uid);
+      if (mine) socket.emit('answer:result', { correct: mine.correct, gain: mine.gain, secondary: mine.secondary, choice: mine.choice });
+      if (c.done && this.lastResult) socket.emit('question:result', this.lastResult);
+    }
+    this.io.to(this.id).emit('player:status', { uid, connected: true });
+    return true;
   }
 
   async finish() {

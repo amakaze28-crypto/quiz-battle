@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callApi } from './api';
-import { Stage, Box, Hot, BackHome, NavHot, fs } from './Stage';
+import { Stage, Box, PageHeader, searchIc, NavHot, fs, cq } from './Stage';
 import { Avatar, Banner, Dot } from './Parts';
 import RankBadge from './RankBadge';
 import PlayerCard from './PlayerCard';
@@ -63,9 +63,15 @@ export default function Friends({ user, go, summary, refresh }) {
 
   const panel = { background: '#0c1d3d' };
   return (
-    <Stage bg="/ui/friends.jpg">
-      <BackHome go={go} homeX={930} />
-      <Hot x={836} y={20} w={80} h={78} label="検索" onClick={() => { setTab('search'); setMsg(null); }} />
+    <Stage bg="/ui/friends2.jpg">
+      <PageHeader title="フレンド" go={go}>
+        <Box x={822} y={18} w={84} h={76}>
+          <button onClick={() => { setTab('search'); setMsg(null); }} aria-label="検索" className="w-full h-full rounded-xl active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(180deg,#14305f,#0b1a38)', border: `${cq(2.5)} solid #c9a24a`, boxShadow: '0 3px 8px rgba(0,0,0,.45)', padding: cq(15) }}>{searchIc}</button>
+        </Box>
+      </PageHeader>
+      {/* 一覧まわりの枠 */}
+      <Box x={26} y={312} w={972} h={1020} className="rounded-xl" style={{ background: 'linear-gradient(180deg,rgba(10,24,56,.92),rgba(7,17,40,.94))', border: `${cq(3)} solid #c9a24a`, boxShadow: '0 6px 20px rgba(0,0,0,.5)' }} />
 
       {TABS.map(([k, label, x, w]) => (
         <Box key={k} x={x} y={248} w={w} h={64}>

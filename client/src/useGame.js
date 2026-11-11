@@ -18,8 +18,11 @@ export function useGame(user) {
   const [error, setError] = useState(null);
   const [banReason, setBanReason] = useState('');
   const [maintMsg, setMaintMsg] = useState('');
+  const [offline, setOffline] = useState([]); // 対戦中に切断している人のuid
+  const phaseRef = useRef('home');
 
   useEffect(() => { qRef.current = q; }, [q]);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -41,8 +44,15 @@ export function useGame(user) {
     s.on('queue:error', setError);
     s.on('match:found', (m) => {
       setMatch(m); setQueue(null); setPhase('matched');
-      setScores(Object.fromEntries(m.players.map((p) => [p.uid, 0])));
-      setAvgTimes({}); setSecIntro(null);
+      setScores(m.scores || Object.fromEntries(m.players.map((p) => [p.uid, 0])));
+      setAvgTimes(m.avgTimes || {}); setSecIntro(null);
+      setOffline(m.offline || []);
+      if (m.resumed) { setQ(null); setResult(null); }
+    });
+    s.on('player:status', ({ uid, connected }) => setOffline((o) => (connected ? o.filter((x) => x !== uid) : o.includes(uid) ? o : [...o, uid])));
+    // 再ログインしたが、対戦はもう終わっていた
+    s.on('room:none', () => {
+      if (phaseRef.current === 'matched' || phaseRef.current === 'playing') { setPhase('home'); setMatch(null); setQ(null); setSecIntro(null); setOffline([]); }
     });
     s.on('secondary:intro', (d) => setSecIntro({ at: performance.now(), ms: d.ms }));
     s.on('question', (d) => {
@@ -51,7 +61,7 @@ export function useGame(user) {
       setPhase('playing');
     });
     s.on('player:answered', ({ uid }) => setQ((x) => x && { ...x, answeredUids: [...x.answeredUids, uid] }));
-    s.on('answer:result', (r) => setQ((x) => x && { ...x, mine: r }));
+    s.on('answer:result', (r) => setQ((x) => x && { ...x, mine: r, myChoice: x.myChoice ?? r.choice ?? null }));
     s.on('question:result', (r) => { setScores(r.scores); setAvgTimes(r.avgTimes || {}); setQ((x) => x && { ...x, result: r }); });
     s.on('match:end', (r) => { setResult(r); setPhase('result'); });
 
@@ -60,7 +70,7 @@ export function useGame(user) {
 
   const joinQueue = useCallback(() => { setError(null); setPhase('queue'); sockRef.current?.emit('queue:join'); }, []);
   const leaveQueue = useCallback(() => { sockRef.current?.emit('queue:leave'); setQueue(null); setPhase('home'); }, []);
-  const goHome = useCallback(() => { setSecIntro(null); setPhase('home'); setResult(null); setMatch(null); setQ(null); }, []);
+  const goHome = useCallback(() => { setSecIntro(null); setPhase('home'); setResult(null); setMatch(null); setQ(null); setOffline([]); }, []);
 
   const answer = useCallback((choice) => {
     const x = qRef.current;
@@ -69,5 +79,5 @@ export function useGame(user) {
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  return { conn, maintMsg, banReason, setProfile, profile, phase, queue, match, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
+  return { conn, maintMsg, banReason, setProfile, profile, phase, queue, match, offline, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
 }
