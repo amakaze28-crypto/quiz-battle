@@ -375,7 +375,7 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (banner && banner !== cur.banner && !okBanner(banner)) return res.status(400).json({ error: 'バナー画像が大きすぎます（約4MBまで）' });
     if (b.banner !== undefined && banner !== cur.banner) banner = await putBanner(id, banner, cur.banner);
     const { id: _i, ...next } = normalizeGacha(id, { ...cur, ...b, banner, kind: id === NORMAL_ID ? 'normal' : 'limited' });
-    await store.colSet('gachas', id, { ...next, createdAt: cur.createdAt || Date.now(), updatedAt: Date.now() });
+    await store.colSet('gachas', id, { ...next, createdAt: cur.createdAt || Date.now(), updatedAt: Date.now() }, { replace: true });
     res.json({ ok: true });
   }));
   r.delete('/gachas/:id', wrap(async (req, res) => {

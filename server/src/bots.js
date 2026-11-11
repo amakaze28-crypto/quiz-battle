@@ -1,6 +1,6 @@
 // bot: ダイヤ帯まで、待ち時間が長いときにマッチングに加わる。
 // 正答率 = 同じランク帯のbot以外のプレイヤーの平均正答率、
-// 解答時間 = 同じ帯の平均解答秒数 −1 〜 +5 秒 の一様乱数
+// 解答時間 = 同じ帯の平均解答秒数の ±3 秒以内。平均あたりが一番多く、離れるほど少しずつ出にくい（山の頂点は平均ぴったりではなく、毎回少しずれる）
 import crypto from 'crypto';
 import * as store from './store.js';
 import { cfg } from './config.js';
@@ -63,7 +63,12 @@ export function planAnswer(bot, correctIndex) {
   const correct = Math.random() < bot.accuracy;
   let choice = correctIndex;
   if (!correct) { do { choice = Math.floor(Math.random() * 4); } while (choice === correctIndex); }
-  const sec = bot.avgSec - 1 + Math.random() * 6; // 平均 −1 〜 +5 秒
+  // 山の頂点を平均から ±0.6 秒ほどずらし、正規分布（標準偏差1.3秒）で選ぶ。±3 秒の外は引き直す
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+  const peak = bot.avgSec + (Math.random() - 0.5) * 1.2;
+  let sec = peak + gauss() * 1.3;
+  for (let i = 0; i < 20 && Math.abs(sec - bot.avgSec) > 3; i++) sec = peak + gauss() * 1.3;
+  sec = Math.min(bot.avgSec + 3, Math.max(bot.avgSec - 3, sec));
   const limit = cfg.questionTimeMs / 1000;
   return { choice, delayMs: Math.round(Math.min(limit - 2, Math.max(0.8, sec)) * 1000) };
 }

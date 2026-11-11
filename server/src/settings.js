@@ -98,7 +98,7 @@ export async function saveSettings(p) {
     gacha: mergeGacha({ ...current.gacha, ...(p.gacha || {}) }),
     maintenance: current.maintenance, // メンテナンスは専用の操作でだけ変える（設定の保存で上書きしない）
   };
-  await store.colSet('settings', 'main', next);
+  await store.colSet('settings', 'main', next, { replace: true });
   current = next;
   return current;
 }
@@ -106,6 +106,6 @@ export async function saveSettings(p) {
 export const maintenance = () => current.maintenance || { on: false, message: '' };
 export async function setMaintenance(on, message) {
   current = { ...current, maintenance: mergeMaintenance({ on, message }) };
-  await store.colSet('settings', 'main', current);
+  await store.colSet('settings', 'main', current, { replace: true });
   return current.maintenance;
 }

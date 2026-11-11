@@ -209,6 +209,7 @@ export class Room {
     for (const p of this.players) {
       if (p.isBot || p.delta <= 0) continue;
       const u = await store.getUser(p.uid).catch(() => null);
+      if (u?.isMaster) continue; // マスター帯（MR）では連勝ボーナスは付かない
       const m = streakMult((u?.streak || 0) + 1);
       if (m > 1) { p.streakMult = m; p.delta = Math.round(p.delta * m); }
     }

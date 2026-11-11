@@ -367,10 +367,10 @@ async function rawAdd(name, data) {
   memCol(name).set(id, { id, ...clone(data) });
   return id;
 }
-async function rawSet(name, id, data) {
+async function rawSet(name, id, data, replace = false) {
   note('writes', name);
-  if (useFirebase) await db.collection(name).doc(id).set(data, { merge: true });
-  else memCol(name).set(id, { ...mergeInto(memCol(name).get(id) || {}, clone(data)), id });
+  if (useFirebase) await db.collection(name).doc(id).set(data, replace ? {} : { merge: true });
+  else memCol(name).set(id, { ...(replace ? clone(data) : mergeInto(memCol(name).get(id) || {}, clone(data))), id });
 }
 async function rawDel(name, id) {
   note('writes', name);
@@ -507,10 +507,11 @@ export async function colAdd(name, data) {
   if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { id, ...clone(data) }));
   return id;
 }
-export async function colSet(name, id, data) {
+// replace: true なら、ドキュメントを丸ごと置き換える（古い項目が残らない）
+export async function colSet(name, id, data, { replace = false } = {}) {
   if (name === 'items') return itemSet(id, data);
-  await rawSet(name, id, data);
-  if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, { ...mergeInto(m.get(id) || {}, clone(data)), id }));
+  await rawSet(name, id, data, replace);
+  if (CACHED.has(name)) ccTouch(name, (m) => m.set(id, replace ? { ...clone(data), id } : { ...mergeInto(m.get(id) || {}, clone(data)), id }));
 }
 export async function colDel(name, id) {
   if (name === 'items') return itemDel(id);

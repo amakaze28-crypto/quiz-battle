@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import { Server } from 'socket.io';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { cfg } from './config.js';
 import * as store from './store.js';
 import { reloadQuestions, seedIfEmpty, pickQuestions, publishedCount } from './questions.js';
@@ -30,7 +32,17 @@ await badges.reloadBadgeDefs();
 startSeasonTimer();
 
 const app = express();
+app.set('trust proxy', 1); // Render のプロキシ越しでも、利用者ごとのIPで数える
+if (cfg.origin === '*' && process.env.NODE_ENV === 'production') console.warn('[security] CLIENT_ORIGIN が未設定です。Render の環境変数に、クライアントのURL（例: https://xxx.vercel.app）を設定してください');
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false })); // 画像・音源は別ドメインのクライアントから読むため
 app.use(cors({ origin: cfg.origin }));
+// 設定・一覧などはいつも最新を返す（画像・音源は各自の指定を使う）
+app.use(['/api', '/admin'], (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+// レート制限：全体は緩め、ガチャ・購入・申請・通報などは厳しめ
+const limiter = (windowMs, limit, message) => rateLimit({ windowMs, limit, standardHeaders: true, legacyHeaders: false, message: { error: message }, skip: (req) => req.method === 'GET' || req.method === 'OPTIONS' });
+app.use('/api', limiter(60_000, 120, '操作が多すぎます。少し待ってからもう一度お試しください'));
+app.use(['/api/gacha', '/api/shop', '/api/friends', '/api/report', '/api/report-question', '/api/name'], limiter(60_000, 30, '操作が多すぎます。少し待ってからもう一度お試しください'));
+app.use('/admin', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: true, legacyHeaders: false, message: { error: '操作が多すぎます' } }));
 app.get('/health', (_req, res) => res.json({ ok: true })); // Renderのヘルスチェック／スリープ解除用
 
 const server = http.createServer(app);
