@@ -283,7 +283,7 @@ export function SettingsAdmin({ user }) {
   if (!s) return <p>{msg?.text || '読み込み中…'}</p>;
 
   const save = async () => {
-    try { setS(await adminApi(user, '/settings', { method: 'PUT', body: s })); setMsg({ ok: true, text: '保存しました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
+    try { setS(await adminApi(user, '/settings', { method: 'PUT', body: (({ gacha, ...rest }) => rest)(s) })); setMsg({ ok: true, text: '保存しました' }); } catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   return (
     <div className="grid gap-5 lg:grid-cols-2">

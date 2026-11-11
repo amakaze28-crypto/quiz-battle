@@ -82,7 +82,15 @@ export async function loadSettings() {
   return current;
 }
 
-export async function saveSettings(p) {
+// 保存は1件ずつ順番に行う（同時に保存して、片方が古い値で上書きしないように）
+let saveChain = Promise.resolve();
+export function saveSettings(p) {
+  const run = saveChain.then(() => doSave(p));
+  saveChain = run.catch(() => {});
+  return run;
+}
+
+async function doSave(p) {
   const r = p.missionRewards || {};
   const next = {
     missionRewards: {
@@ -99,6 +107,9 @@ export async function saveSettings(p) {
     maintenance: current.maintenance, // メンテナンスは専用の操作でだけ変える（設定の保存で上書きしない）
   };
   await store.colSet('settings', 'main', next, { replace: true });
+  // 本当に保存されたか、保存先から読み直して確かめる（違えば、画面にエラーを出す）
+  const back = await store.colGet('settings', 'main');
+  if (JSON.stringify(mergeGacha(back?.gacha)) !== JSON.stringify(next.gacha)) throw new Error('保存した内容を確認できませんでした。もう一度お試しください');
   current = next;
   return current;
 }
