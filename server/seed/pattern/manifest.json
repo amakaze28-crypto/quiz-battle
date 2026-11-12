@@ -1,0 +1,386 @@
+[
+ {
+  "name": "たてじまバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p1-red.webp"
+ },
+ {
+  "name": "ほうしゃじまリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p1-red.webp"
+ },
+ {
+  "name": "よこじまバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p2-red.webp"
+ },
+ {
+  "name": "うずまきじまリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p2-red.webp"
+ },
+ {
+  "name": "ななめじまバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p3-red.webp"
+ },
+ {
+  "name": "みずたまリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p3-red.webp"
+ },
+ {
+  "name": "みずたまバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p4-red.webp"
+ },
+ {
+  "name": "いちまつリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p4-red.webp"
+ },
+ {
+  "name": "おおみずたまバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p5-red.webp"
+ },
+ {
+  "name": "ビーズリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p5-red.webp"
+ },
+ {
+  "name": "ギンガムバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p6-red.webp"
+ },
+ {
+  "name": "ジグザグリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p6-red.webp"
+ },
+ {
+  "name": "いちまつバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p7-red.webp"
+ },
+ {
+  "name": "にじゅうせんリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p7-red.webp"
+ },
+ {
+  "name": "ひしがたバナー 赤",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p8-red.webp"
+ },
+ {
+  "name": "ひしがたリング 赤",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p8-red.webp"
+ },
+ {
+  "name": "たてじまバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p1-blue.webp"
+ },
+ {
+  "name": "ほうしゃじまリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p1-blue.webp"
+ },
+ {
+  "name": "よこじまバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p2-blue.webp"
+ },
+ {
+  "name": "うずまきじまリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p2-blue.webp"
+ },
+ {
+  "name": "ななめじまバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p3-blue.webp"
+ },
+ {
+  "name": "みずたまリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p3-blue.webp"
+ },
+ {
+  "name": "みずたまバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p4-blue.webp"
+ },
+ {
+  "name": "いちまつリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p4-blue.webp"
+ },
+ {
+  "name": "おおみずたまバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p5-blue.webp"
+ },
+ {
+  "name": "ビーズリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p5-blue.webp"
+ },
+ {
+  "name": "ギンガムバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p6-blue.webp"
+ },
+ {
+  "name": "ジグザグリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p6-blue.webp"
+ },
+ {
+  "name": "いちまつバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p7-blue.webp"
+ },
+ {
+  "name": "にじゅうせんリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p7-blue.webp"
+ },
+ {
+  "name": "ひしがたバナー 青",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p8-blue.webp"
+ },
+ {
+  "name": "ひしがたリング 青",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p8-blue.webp"
+ },
+ {
+  "name": "たてじまバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p1-green.webp"
+ },
+ {
+  "name": "ほうしゃじまリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p1-green.webp"
+ },
+ {
+  "name": "よこじまバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p2-green.webp"
+ },
+ {
+  "name": "うずまきじまリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p2-green.webp"
+ },
+ {
+  "name": "ななめじまバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p3-green.webp"
+ },
+ {
+  "name": "みずたまリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p3-green.webp"
+ },
+ {
+  "name": "みずたまバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p4-green.webp"
+ },
+ {
+  "name": "いちまつリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p4-green.webp"
+ },
+ {
+  "name": "おおみずたまバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p5-green.webp"
+ },
+ {
+  "name": "ビーズリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p5-green.webp"
+ },
+ {
+  "name": "ギンガムバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p6-green.webp"
+ },
+ {
+  "name": "ジグザグリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p6-green.webp"
+ },
+ {
+  "name": "いちまつバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p7-green.webp"
+ },
+ {
+  "name": "にじゅうせんリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p7-green.webp"
+ },
+ {
+  "name": "ひしがたバナー 緑",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p8-green.webp"
+ },
+ {
+  "name": "ひしがたリング 緑",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p8-green.webp"
+ },
+ {
+  "name": "たてじまバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p1-purple.webp"
+ },
+ {
+  "name": "ほうしゃじまリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p1-purple.webp"
+ },
+ {
+  "name": "よこじまバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p2-purple.webp"
+ },
+ {
+  "name": "うずまきじまリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p2-purple.webp"
+ },
+ {
+  "name": "ななめじまバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p3-purple.webp"
+ },
+ {
+  "name": "みずたまリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p3-purple.webp"
+ },
+ {
+  "name": "みずたまバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p4-purple.webp"
+ },
+ {
+  "name": "いちまつリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p4-purple.webp"
+ },
+ {
+  "name": "おおみずたまバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p5-purple.webp"
+ },
+ {
+  "name": "ビーズリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p5-purple.webp"
+ },
+ {
+  "name": "ギンガムバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p6-purple.webp"
+ },
+ {
+  "name": "ジグザグリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p6-purple.webp"
+ },
+ {
+  "name": "いちまつバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p7-purple.webp"
+ },
+ {
+  "name": "にじゅうせんリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p7-purple.webp"
+ },
+ {
+  "name": "ひしがたバナー 紫",
+  "type": "card",
+  "rarity": "uncommon",
+  "file": "banner-p8-purple.webp"
+ },
+ {
+  "name": "ひしがたリング 紫",
+  "type": "frame",
+  "rarity": "uncommon",
+  "file": "ring-p8-purple.webp"
+ }
+]

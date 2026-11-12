@@ -320,7 +320,17 @@ export function mountAdmin(app, { io, matchmaker }) {
         added++;
       }
     }
-    res.json({ added, total: colors.length * 2 });
+    // 柄つき（アンコモン）。seed/pattern/manifest.json に沿って追加
+    const pdir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed', 'pattern');
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(path.join(pdir, 'manifest.json'), 'utf8')); } catch { /* 柄の素材がなければ何もしない */ }
+    for (const it of list) {
+      if (have.has(it.name)) continue;
+      const image = `data:image/webp;base64,${fs.readFileSync(path.join(pdir, it.file)).toString('base64')}`;
+      await store.colAdd('items', { name: it.name, type: it.type, rarity: it.rarity, price: 0, image, onShop: false, inGacha: true, createdAt: Date.now() + added });
+      added++;
+    }
+    res.json({ added, total: colors.length * 2 + list.length });
   }));
   r.put('/items/:id', wrap(async (req, res) => {
     const patch = {};
