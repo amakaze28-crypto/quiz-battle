@@ -44,6 +44,7 @@ export default function Friends({ user, go, summary, refresh }) {
   const [card, setCard] = useState(null);
   const [code, setCode] = useState('');
   const [msg, setMsg] = useState(null);
+  const [found, setFound] = useState(null); // フレンドコードで見つけた相手（申請前の確認）
 
   const load = useCallback(async () => { try { setData(await callApi(user, '/friends')); } catch (e) { setMsg({ ok: false, text: e.message }); } }, [user]);
   useEffect(() => { load(); }, [load]);
@@ -53,7 +54,10 @@ export default function Friends({ user, go, summary, refresh }) {
   };
   const remove = (f) => { if (window.confirm(`${f.displayName} をフレンドから削除しますか？`)) run('/friends/remove', { uid: f.uid }); };
   const removeAll = () => { if (data?.friends.length && window.confirm('フレンドを全員削除しますか？この操作は取り消せません。')) run('/friends/removeAll', {}, '削除しました'); };
-  const request = async () => { await run('/friends/request', { code }, '申請しました（相手が承認するとフレンドになります）'); setCode(''); };
+  const lookup = async () => {
+    try { setFound(await callApi(user, `/friends/lookup?code=${encodeURIComponent(code)}`)); setMsg(null); } catch (e) { setFound(null); setMsg({ ok: false, text: e.message }); }
+  };
+  const request = async () => { await run('/friends/request', { code }, '申請しました（相手が承認するとフレンドになります）'); setCode(''); setFound(null); };
 
   const friends = useMemo(() => {
     const l = [...(data?.friends || [])];
@@ -144,10 +148,27 @@ export default function Friends({ user, go, summary, refresh }) {
             </div>
             <p className="text-[#9fb2d4] mb-[1cqw]" style={{ fontSize: fs(21) }}>相手のフレンドコードを入力して申請</p>
             <div className="flex gap-[1.4cqw]">
-              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={8} placeholder="8文字のコード"
+              <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setFound(null); }} maxLength={8} placeholder="8文字のコード"
                 className="flex-1 min-w-0 rounded-lg bg-[#0a1630] border border-[#c9a24a]/60 px-[2cqw] font-mono tracking-widest" style={{ fontSize: fs(34), padding: '1.4cqw 2cqw' }} />
-              <button onClick={request} disabled={code.length < 8} className="rounded-lg bg-emerald-500 font-bold px-[3cqw] disabled:opacity-40" style={{ fontSize: fs(28) }}>申請</button>
+              <button onClick={lookup} disabled={code.length < 8} className="rounded-lg bg-sky-600 font-bold px-[3cqw] disabled:opacity-40" style={{ fontSize: fs(28) }}>確認</button>
             </div>
+            {found && (
+              <div className="mt-[2.4cqw]">
+                <p className="text-[#9fb2d4] mb-[1.4cqw]" style={{ fontSize: fs(22) }}>この人に申請しますか？</p>
+                <div className="flex items-center gap-[3cqw]">
+                  <div className="shrink-0" style={{ width: '24cqw' }}><PlayerCard c={found.player} /></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-extrabold truncate" style={{ fontSize: fs(30) }}>{found.player.displayName}</p>
+                    <p className="text-[#9fb2d4] mb-[1.4cqw]" style={{ fontSize: fs(22) }}>{found.player.rank?.label}</p>
+                    {(found.already || found.pending) && <p className="text-amber-300 mb-[1cqw]" style={{ fontSize: fs(22) }}>{found.already ? 'すでにフレンドです' : 'すでに申請中です'}</p>}
+                    <div className="flex flex-col gap-[1.2cqw]">
+                      <button onClick={request} disabled={found.already || found.pending} className="rounded-lg bg-emerald-500 font-bold py-[1.6cqw] disabled:opacity-40" style={{ fontSize: fs(26) }}>この人に申請する</button>
+                      <button onClick={() => setFound(null)} className="rounded-lg bg-slate-600 font-bold py-[1.4cqw]" style={{ fontSize: fs(24) }}>やめる</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Box>

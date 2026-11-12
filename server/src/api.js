@@ -152,6 +152,16 @@ export function mountApi(app) {
 
   r.get('/friends', wrap(async (req, res) => res.json(await friendsPayload(await fresh(req)))));
 
+  // フレンドコードから相手のカード（バナー）を確認する。申請の前に「この人でよいか」を見るため
+  r.get('/friends/lookup', wrap(async (req, res) => {
+    const code = String(req.query.code || '').trim().toUpperCase();
+    const me = await fresh(req);
+    const target = code.length === 8 ? await store.findUserByFriendCode(code) : null;
+    if (!target) return res.status(404).json({ error: 'フレンドコードが見つかりません' });
+    if (target.uid === me.uid) return res.status(400).json({ error: '自分自身は追加できません' });
+    res.json({ player: friendView(target), already: me.friends.includes(target.uid), pending: me.outgoing.includes(target.uid) });
+  }));
+
   r.post('/friends/request', wrap(async (req, res) => {
     const code = String(req.body.code || '').trim().toUpperCase();
     const me = await fresh(req);

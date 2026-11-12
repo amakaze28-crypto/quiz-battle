@@ -42,6 +42,7 @@ app.use(['/api', '/admin'], (_req, res, next) => { res.set('Cache-Control', 'no-
 const limiter = (windowMs, limit, message) => rateLimit({ windowMs, limit, standardHeaders: true, legacyHeaders: false, message: { error: message }, skip: (req) => req.method === 'GET' || req.method === 'OPTIONS' });
 app.use('/api', limiter(60_000, 120, '操作が多すぎます。少し待ってからもう一度お試しください'));
 app.use(['/api/gacha', '/api/shop', '/api/friends', '/api/report', '/api/report-question', '/api/name'], limiter(60_000, 30, '操作が多すぎます。少し待ってからもう一度お試しください'));
+app.use('/api/friends/lookup', rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { error: '検索が多すぎます。少し待ってからもう一度お試しください' } })); // コードの総当たり対策（GETも数える）
 app.use('/admin', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: true, legacyHeaders: false, message: { error: '操作が多すぎます' } }));
 app.get('/health', (_req, res) => res.json({ ok: true })); // Renderのヘルスチェック／スリープ解除用
 

@@ -15,6 +15,7 @@ import NameSetup from './NameSetup';
 import Settings from './Settings';
 import Guide from './Guide';
 import Admin from './Admin';
+import PlayerCard from './PlayerCard';
 import { Mails } from './Pages';
 import Shop from './Shop';
 import Missions from './Missions';
@@ -89,15 +90,8 @@ function Authed({ user, onMaintenance }) {
         <p className="ui-title text-2xl mb-4">対戦相手が見つかりました！</p>
         <div className="w-full max-w-2xl grid gap-1.5 sm:gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${g.match.players.length}, minmax(0, 1fr))` }}>
           {g.match.players.map((p, i) => (
-            <div key={p.uid} className="pop-in rounded-xl overflow-hidden flex flex-col items-center text-center pb-2"
-              style={{ background: 'linear-gradient(180deg,rgba(18,40,82,.92),rgba(8,20,46,.92))', border: '2px solid #c9a24a', animationDelay: `${i * 0.12}s` }}>
-              {p.bannerId && p.bannerId !== 'none'
-                ? <Banner bannerId={p.bannerId} className="w-full" style={{ aspectRatio: '4 / 1' }} />
-                : <div className="w-full" style={{ aspectRatio: '4 / 1', background: 'linear-gradient(90deg,#1b3b78,#0e2147)' }} />}
-              <div className="mt-2 w-[52%]"><Avatar iconId={p.iconId} frameId={p.frameId} size={0} /></div>
-              <div className="mt-1 w-[34%]"><RankBadge rank={{ key: p.rankKey, sub: p.rankSub, label: p.rank }} size="fill" showSub={false} /></div>
-              <p className="w-full px-1 font-bold truncate" style={{ fontSize: 'clamp(11px, 2.6vw, 17px)' }}>{p.name}</p>
-              <p className="text-slate-300" style={{ fontSize: 'clamp(9px, 2.1vw, 13px)' }}>{p.rank}</p>
+            <div key={p.uid} className="pop-in" style={{ animationDelay: `${i * 0.12}s` }}>
+              <PlayerCard c={{ displayName: p.name, iconId: p.iconId, frameId: p.frameId, cardId: p.bannerId, charId: p.charId, badgeId: p.badgeId, badgeInfo: p.badgeInfo, rank: { key: p.rankKey, label: p.rank, sub: p.rankSub } }} />
             </div>
           ))}
         </div>
