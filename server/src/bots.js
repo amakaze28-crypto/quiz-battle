@@ -50,7 +50,7 @@ export async function makeBot(like, usedNames = new Set()) {
   const sub = 1 + Math.floor(Math.random() * 5);
   const noop = () => {};
   return {
-    uid: `bot:${crypto.randomUUID()}`, isBot: true, name, iconId: 'default', frameId: 'none', bannerId: 'none',
+    uid: `bot:${crypto.randomUUID()}`, isBot: true, name, iconId: 'default', frameId: 'none', bannerId: 'none', charId: Math.random() < 0.5 ? 'char-m' : 'char-f', badgeId: 'auto', badgeInfo: null,
     socket: { data: { rtt: 0 }, join: noop, emit: noop },
     rating: Math.max(0, like.rating + Math.round((Math.random() - 0.5) * 200)),
     rankLabel: `${t.name}${sub}`, rankKey: t.key, rankSub: sub,

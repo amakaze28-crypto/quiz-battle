@@ -287,21 +287,22 @@ export function mountApi(app) {
   };
   const gachaMeta = (g, now) => ({ id: g.id, name: g.name, kind: g.kind, cost: costOf(g), startAt: g.startAt, endAt: g.endAt, hasBanner: !!g.banner, active: isActive(g, now) });
 
-  // 提供割合。まず「砂かアイテムか」(sandPercent) を決め、次にレア度を rarityPercent で決める。
-  // アイテムは、出せるアイテムがいないレア度を除いて按分し直す（全部いなければ砂だけ）
+  // 提供割合。まず rarityPercent でレア度を決め、そのあと sandPercent で「砂」か「アイテム」かを決める。
+  // そのレア度のアイテムがガチャに入っていないときは、砂になる
   function rates(g, pool) {
     const pc = g.rarityPercent;
-    const availR = RARITIES.filter((x) => pc[x] > 0 && pool.some((i) => i.rarity === x));
-    const itemOn = availR.length > 0 && g.sandPercent < 100;
-    const sandShare = itemOn ? g.sandPercent / 100 : 1;
-    const itemShare = 1 - sandShare;
-    const iw = availR.reduce((s, x) => s + pc[x], 0) || 1;
-    const sw = RARITIES.reduce((s, x) => s + pc[x], 0);
-    const pct = (v) => Math.round(v * 10000) / 100;
+    const sw = RARITIES.reduce((t, x) => t + pc[x], 0);
+    const pct = (v) => Math.round(v * 100) / 100;
+    const share = (x) => (sw > 0 ? pc[x] / sw : x === 'common' ? 1 : 0);
+    const itemShare = Math.min(1, Math.max(0, 1 - g.sandPercent / 100));
+    const has = Object.fromEntries(RARITIES.map((x) => [x, pool.some((i) => i.rarity === x)]));
+    const rarity = Object.fromEntries(RARITIES.map((x) => [x, pct(share(x))]));
+    const itemRarity = Object.fromEntries(RARITIES.map((x) => [x, has[x] ? pct(share(x) * itemShare) : 0]));
+    const sandRarity = Object.fromEntries(RARITIES.map((x) => [x, pct(share(x) - (has[x] ? share(x) * itemShare : 0))]));
     return {
-      item: pct(itemShare), sand: pct(sandShare),
-      itemRarity: Object.fromEntries(RARITIES.map((x) => [x, availR.includes(x) ? pct(itemShare * (pc[x] / iw)) : 0])),
-      sandRarity: Object.fromEntries(RARITIES.map((x) => [x, sw > 0 ? pct(sandShare * (pc[x] / sw)) : (x === 'common' ? pct(sandShare) : 0)])),
+      rarity, itemRarity, sandRarity, has,
+      item: pct(RARITIES.reduce((t, x) => t + itemRarity[x], 0)), sand: pct(RARITIES.reduce((t, x) => t + sandRarity[x], 0)),
+      itemPercent: pct(itemShare), sandPercent: pct(1 - itemShare), // レア度が決まった後の、アイテム／砂の割合
     };
   }
 
@@ -348,9 +349,9 @@ export function mountApi(app) {
     let sandGain = 0;
     const results = [];
     for (let n = 0; n < count; n++) {
-      const kind = wpick([['item', rt.item], ['sand', rt.sand]]) || 'sand';
+      const rar = wpick(RARITIES.map((x) => [x, rt.rarity[x]])) || 'common';
+      const kind = rt.has[rar] && Math.random() * 100 < rt.itemPercent ? 'item' : 'sand';
       if (kind === 'item') {
-        const rar = wpick(RARITIES.map((x) => [x, rt.itemRarity[x]]));
         const cand = pool.filter((i) => i.rarity === rar);
         const it = cand[Math.floor(Math.random() * cand.length)];
         if (it.isSet) {
@@ -372,7 +373,6 @@ export function mountApi(app) {
         sandGain += sand;
         results.push({ kind: 'item', item: meta(it), duplicate: dup, sand });
       } else {
-        const rar = wpick(RARITIES.map((x) => [x, rt.sandRarity[x]])) || 'common';
         const sand = g.sandAmounts[rar];
         sandGain += sand;
         results.push({ kind: 'sand', rarity: rar, sand });

@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Stage, Box, fs } from './Stage';
 import { Avatar } from './Parts';
+import PlayerCard, { layoutOf, CARD_ASPECT } from './PlayerCard';
+import { useCardLayouts } from './cardLayout';
 import ReportModal, { QuestionReportModal } from './ReportModal';
 import { sfx } from './audio';
 
 const CARD_X = [37, 282, 527, 773];
+
+// 対戦の帯：プロフィールのバナー（台紙・アイコン・キャラ・名前・ランク・バッジ込み）を、枠の大きさに合わせて切り出して表示する
+function CardCrop({ p, ov }) {
+  const L = p.bannerId && p.bannerId !== 'none' ? layoutOf(p.bannerId, ov) : null;
+  const frame = (226 / 197) * CARD_ASPECT; // 枠の高さ ÷ カード全体の高さ
+  let top = 0.12;
+  if (L) { const bw = (L.panel - L.pl) * 0.8; const a = L.cy - (L.d * 0.9 * CARD_ASPECT) / 2 - 0.012; const b = L.by + (bw * CARD_ASPECT) / 2 + 0.01; top = (a + b) / 2 - frame / 2; }
+  top = Math.min(1 - frame, Math.max(0, top));
+  const c = { displayName: p.name, iconId: p.iconId, frameId: p.frameId, cardId: p.bannerId, charId: p.charId, badgeId: p.badgeId, badgeInfo: p.badgeInfo, rank: { key: p.rankKey, label: p.rank, sub: p.rankSub } };
+  return <div style={{ width: '100%', transform: `translateY(${-top * 100}%)` }}><PlayerCard c={c} /></div>;
+}
 const BTN = [
   { x: 27, y: 925, w: 473, h: 163 },
   { x: 523, y: 925, w: 474, h: 163 },
@@ -31,6 +44,7 @@ function MarkPop({ kind }) {
 
 export default function Game({ g, user }) {
   const { q, match, scores, avgTimes, secIntro, answer, conn, profile, offline = [] } = g;
+  const ov = useCardLayouts();
   const [now, setNow] = useState(performance.now());
   const [report, setReport] = useState(false);
   const [qReport, setQReport] = useState(false);
@@ -103,15 +117,16 @@ export default function Game({ g, user }) {
           const mark = finished ? (res?.correct ? ['✔', 'bg-emerald-500'] : [res?.choice === null ? '–' : '✖', res?.choice === null ? 'bg-slate-500' : 'bg-red-500']) : done ? ['✔', 'bg-sky-500'] : null;
           return (
             <div key={p.uid}>
-              <Box x={cx - 58} y={250} w={116} h={116}><Avatar iconId={p.iconId} frameId={p.frameId} size={0} /></Box>
+              <Box x={x + 10} y={232} w={197} h={226} className="overflow-hidden rounded-md" style={{ filter: offline.includes(p.uid) ? 'grayscale(1) brightness(.6)' : undefined }}>
+                <CardCrop p={p} ov={ov} />
+              </Box>
               {mark && (
                 <Box x={cx + 20} y={326} w={44} h={44} className={`rounded-full grid place-items-center font-bold ring-2 ring-white ${mark[1]}`} style={{ fontSize: fs(26) }}>{mark[0]}</Box>
               )}
-              <Box x={x + 18} y={372} w={180} h={32} className="flex items-center justify-center truncate" style={{ fontSize: fs(21), fontWeight: 700, opacity: offline.includes(p.uid) ? 0.45 : 1 }}>{p.name}</Box>
               {offline.includes(p.uid) && (
                 <Box x={x + 14} y={300} w={188} h={36} className="flex items-center justify-center rounded-md bg-black/60 pointer-events-none" style={{ fontSize: fs(19), fontWeight: 800, color: '#ef4444', textShadow: '0 1px 2px #000' }}>切断</Box>
               )}
-              <Box x={x + 22} y={418} w={172} h={32} className="flex items-center justify-center gap-1" style={{ fontSize: fs(21), fontWeight: 800, color: '#fde68a' }}>
+              <Box x={x + 22} y={420} w={172} h={32} className="flex items-center justify-center gap-1 rounded-md bg-black/60" style={{ fontSize: fs(21), fontWeight: 800, color: '#fde68a' }}>
                 {scores[p.uid] ?? 0}点
                 {res?.gain > 0 && <span style={{ color: q.secondary ? '#fb923c' : '#4ade80' }}>+{res.gain}{q.secondary ? '★' : ''}</span>}
               </Box>

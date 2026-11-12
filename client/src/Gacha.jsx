@@ -91,19 +91,20 @@ function RatesModal({ info, onClose }) {
       <div className="max-w-md mx-auto my-4 rounded-2xl bg-[#14213d] border border-[#c9a24a]/70 p-5 text-white" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">提供割合</h2><button onClick={onClose} className="text-slate-400 text-xl">✕</button></div>
         <p className="text-sm mb-1">1回 <Coin n={info.cost} className="text-amber-300" />　／　10回 <Coin n={info.cost * 10} className="text-amber-300" /></p>
-        <p className="text-sm mb-3">アイテム {info.rates.item}%　／　魔法の砂 {info.rates.sand}%</p>
-        <table className="w-full text-sm mb-4">
-          <thead><tr className="text-slate-400 text-left"><th>レア度</th><th>アイテム</th><th>砂(確率)</th><th>砂の量</th><th>被り時</th></tr></thead>
+        <table className="w-full text-sm mb-2">
+          <thead><tr className="text-slate-400 text-left"><th>レア度</th><th>確率</th><th>アイテム</th><th>砂</th><th>砂の量</th><th>被り時</th></tr></thead>
           <tbody>
             {RARITIES.map((x) => (
               <tr key={x} className="border-t border-white/10">
                 <td className="py-1.5 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
+                <td className="font-bold">{info.rates.rarity[x]}%</td>
                 <td>{info.rates.itemRarity[x]}%</td><td>{info.rates.sandRarity[x]}%</td><td>{info.sandAmounts[x]}</td><td>+{info.dupSand[x]}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-slate-400 mb-2">※ 出るアイテムがないレア度は除いて按分されています。被ったアイテムは魔法の砂に変わります。</p>
+        <p className="text-xs text-amber-200 text-right mb-2">レア度が決まったあと：アイテム {info.rates.itemPercent}%　／　砂 {info.rates.sandPercent}%</p>
+        <p className="text-xs text-slate-400 mb-4">※ 先にレア度が決まり、そのあとアイテムか砂かが決まります。そのレア度のアイテムが入っていないときは砂になります。被ったアイテムは魔法の砂に変わります。</p>
         <h3 className="font-bold mb-2">排出アイテム（{info.pool.length}）</h3>
         <ul className="space-y-1.5">
           {info.pool.map((i) => (

@@ -126,7 +126,7 @@ io.on('connection', async (socket) => {
     if (fresh.banned) return;
     const info = rankInfo(fresh, getEmperorSet());
     matchmaker.join({
-      uid, name: fresh.displayName || name, iconId: fresh.iconId || 'default', frameId: fresh.frameId || 'none', bannerId: fresh.cardId || 'none', // 対戦画面の帯には、バナー(プレイヤーカードの台紙)の絵を使う
+      uid, name: fresh.displayName || name, iconId: fresh.iconId || 'default', frameId: fresh.frameId || 'none', bannerId: fresh.cardId || 'none', charId: fresh.charId || 'char-m', badgeId: fresh.badgeId || 'auto', badgeInfo: badges.equippedBadge(fresh), // 対戦画面の帯は、プロフィールのバナー（台紙・キャラ・バッジ込み）と同じ
        socket, rating: ratingValue(fresh),
       rankLabel: info.label, rankKey: info.key, rankSub: info.sub,
     });

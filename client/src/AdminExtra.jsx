@@ -158,6 +158,10 @@ export async function fileToImage(file, type) {
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
     let out = '';
     for (const q of [0.9, 0.82, 0.74, 0.66, 0.56, 0.46]) { out = c.toDataURL('image/webp', q); if (out.length < 650_000) break; }
+    for (let s = 0.85; out.length >= 650_000 && s > 0.3; s -= 0.15) { // それでも大きいときは、画像そのものも小さくする
+      const t = document.createElement('canvas'); t.width = Math.round(c.width * s); t.height = Math.round(c.height * s);
+      t.getContext('2d').drawImage(c, 0, 0, t.width, t.height); out = t.toDataURL('image/webp', 0.7);
+    }
     return out;
   }
   if (type === 'character') { // 全身キャラ: 透過を保って縦長(最大700x1100)に収める
@@ -174,7 +178,9 @@ export async function fileToImage(file, type) {
     const s = Math.min(bmp.width, bmp.height);
     ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 256, 256);
   }
-  return c.toDataURL('image/webp', type === 'character' ? 0.8 : 0.9);
+  let out = c.toDataURL('image/webp', type === 'character' ? 0.8 : 0.9);
+  for (let q = 0.7; out.length >= 650_000 && q > 0.3; q -= 0.1) out = c.toDataURL('image/webp', q); // 大きすぎるときは画質を下げる
+  return out;
 }
 
 export function ItemsAdmin({ user }) {

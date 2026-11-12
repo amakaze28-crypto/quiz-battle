@@ -24,7 +24,7 @@ export class Room {
     this.timers = new Set();
     this.cur = null;
     this.players = entries.map((e) => ({
-      uid: e.uid, name: e.name, iconId: e.iconId, frameId: e.frameId, bannerId: e.bannerId, socket: e.socket,
+      uid: e.uid, name: e.name, iconId: e.iconId, frameId: e.frameId, bannerId: e.bannerId, charId: e.charId || 'char-m', badgeId: e.badgeId || 'auto', badgeInfo: e.badgeInfo || null, socket: e.socket,
       rating: e.rating, rankLabel: e.rankLabel, rankKey: e.rankKey, rankSub: e.rankSub,
       score: 0, secondaries: 0, times: [], connected: true,
       isBot: !!e.isBot, bot: e.bot || null, stat: { q: 0, correct: 0, ans: 0, time: 0 },
@@ -55,7 +55,7 @@ export class Room {
       roomId: this.id,
       total: this.questions.length,
       countdownMs,
-      players: this.players.map((p) => ({ uid: p.uid, isBot: p.isBot, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
+      players: this.players.map((p) => ({ uid: p.uid, isBot: p.isBot, name: p.name, iconId: p.iconId, frameId: p.frameId, bannerId: p.bannerId, charId: p.charId, badgeId: p.badgeId, badgeInfo: p.badgeInfo, rank: p.rankLabel, rankKey: p.rankKey, rankSub: p.rankSub })),
     };
   }
 

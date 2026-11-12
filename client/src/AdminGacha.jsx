@@ -74,7 +74,7 @@ function GachaRatesEditor({ v: raw, onChange }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-bold mb-1">① アイテムと砂の比率</p>
+        <p className="text-sm font-bold mb-1">① アイテムと砂の比率（レア度が決まった後に抽選）</p>
         <div className="flex h-6 rounded overflow-hidden text-xs font-bold text-black">
           <div className="grid place-items-center bg-sky-300" style={{ width: `${100 - sand}%` }}>{100 - sand > 12 ? `アイテム ${Math.round((100 - sand) * 10) / 10}%` : ''}</div>
           <div className="grid place-items-center bg-amber-300" style={{ width: `${sand}%` }}>{sand > 12 ? `砂 ${sand}%` : ''}</div>
@@ -83,10 +83,10 @@ function GachaRatesEditor({ v: raw, onChange }) {
           <input type="range" min={0} max={100} step={1} value={sand} onChange={(e) => set({ sandPercent: Number(e.target.value) })} className="flex-1" />
           <label className="text-sm flex items-center gap-1">砂が出る確率<input type="number" min={0} max={100} step={0.5} className={pctInput} value={sand} onChange={(e) => set({ sandPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} />%</label>
         </div>
-        <p className="text-xs text-slate-400 mt-1">1回引いたとき「砂」が出る確率です。残りがアイテム（アイテムが1つも入っていないときは全部砂になります）。</p>
+        <p className="text-xs text-slate-400 mt-1">レア度が決まったあと、「砂」になる確率です。残りがアイテムです（そのレア度のアイテムがないときは砂になります）。</p>
       </div>
       <div>
-        <p className="text-sm font-bold mb-1">② レア度ごとの出る確率</p>
+        <p className="text-sm font-bold mb-1">② レア度ごとの出る確率（最初に抽選）</p>
         <ul className="space-y-1.5">
           {RARITIES.map((x) => (
             <li key={x} className="flex items-center gap-2">
@@ -100,7 +100,7 @@ function GachaRatesEditor({ v: raw, onChange }) {
           <span className={`text-sm font-bold ${total === 100 ? 'text-emerald-400' : 'text-amber-300'}`}>合計 {total}%</span>
           {total !== 100 && <button type="button" onClick={fix} className={`${btn} bg-slate-700`}>合計を100%に調整</button>}
         </div>
-        <p className="text-xs text-slate-400 mt-1">アイテムも砂も、この確率でレア度が決まります（合計が100%でなくても、割合で按分されます）。そのレア度のアイテムがガチャに入っていないときは、入っているレア度の中で按分し直します。</p>
+        <p className="text-xs text-slate-400 mt-1">最初にこの確率でレア度が決まります（合計が100%でなくても、割合で按分されます）。そのレア度のアイテムがガチャに入っていないときは、砂になります。</p>
       </div>
       <div>
         <p className="text-sm font-bold mb-1">③ 砂の量</p>

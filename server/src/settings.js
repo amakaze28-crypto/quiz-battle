@@ -107,9 +107,6 @@ async function doSave(p) {
     maintenance: current.maintenance, // メンテナンスは専用の操作でだけ変える（設定の保存で上書きしない）
   };
   await store.colSet('settings', 'main', next, { replace: true });
-  // 本当に保存されたか、保存先から読み直して確かめる（違えば、画面にエラーを出す）
-  const back = await store.colGet('settings', 'main');
-  if (JSON.stringify(mergeGacha(back?.gacha)) !== JSON.stringify(next.gacha)) throw new Error('保存した内容を確認できませんでした。もう一度お試しください');
   current = next;
   return current;
 }
