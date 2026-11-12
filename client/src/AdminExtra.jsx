@@ -289,6 +289,14 @@ export function ItemsAdmin({ user }) {
             </select>
             <button onClick={() => { const n = window.prompt('新しい名前', i.name); if (n) patch(i, { name: n }); }} className={`${btn} bg-slate-700`}>名前</button>
             {(i.type === 'card' || i.type === 'frame') && <button onClick={() => { setViewEdit(true); setView(i); }} className={`${btn} bg-sky-700 font-bold`}>位置調整</button>}
+            {i.type === 'character' && (
+              <label className="flex items-center gap-1 text-xs text-slate-300" title="このキャラを獲得すると自動でもらえるアイコン。紐づけたアイコンは単体ではガチャから出ません">アイコン
+                <select value={i.linkedIconId || ''} onChange={(e) => patch(i, { linkedIconId: e.target.value })} className="rounded bg-[#0e1013] border border-white/10 px-2 py-1 text-sm max-w-[10rem]">
+                  <option value="">なし</option>
+                  {(data || []).filter((x) => x.type === 'icon').map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </label>
+            )}
             <button onClick={() => patch(i, { onShop: !i.onShop })} className={`${btn} ${i.onShop ? 'bg-sky-600' : 'bg-slate-600'}`}>{i.onShop ? '販売中' : '非売'}</button>
             <button onClick={() => patch(i, { inGacha: !i.inGacha })} className={`${btn} ${i.inGacha ? 'bg-purple-600' : 'bg-slate-600'}`}>{i.inGacha ? 'ガチャ内' : 'ガチャ外'}</button>
           </li>

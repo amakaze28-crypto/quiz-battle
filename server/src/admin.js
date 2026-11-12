@@ -323,6 +323,11 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (typeof req.body.free === 'boolean') patch.free = req.body.free;
     const cur = await store.colGet('items', req.params.id);
     if (!cur) return res.status(404).json({ error: 'アイテムが見つかりません' });
+    if (cur.type === 'character' && typeof req.body.linkedIconId === 'string') {
+      const ic = req.body.linkedIconId ? await store.colGet('items', req.body.linkedIconId) : null;
+      if (req.body.linkedIconId && (!ic || ic.type !== 'icon')) return res.status(400).json({ error: '紐づけるアイコンを選んでください' });
+      patch.linkedIconId = req.body.linkedIconId;
+    }
     if (cur.type === 'bgm') patch.inGacha = false;
     if (cur.type === 'bgm' && req.body.audio) {
       try { await sounds.saveSound(`bgm_${req.params.id}`, req.body.audioName || cur.name, req.body.audio); } catch (e) { return res.status(400).json({ error: e.message }); }

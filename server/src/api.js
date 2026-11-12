@@ -215,7 +215,8 @@ export function mountApi(app) {
   }));
 
   // ---- ショップ / ガチャ / 装備 ----
-  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: shopPrice(RARITIES.includes(i.rarity) ? i.rarity : 'common'), onShop: !!i.onShop, free: !!i.free, inGacha: !!i.inGacha, createdAt: i.createdAt || 0 });
+  const own = (owned, x) => { owned.add(x.id); if (x._icon) owned.add(x._icon.id); }; // キャラを獲得すると、紐づいたアイコンも付く
+  const meta = (i) => ({ iconBonus: i._icon ? i._icon.name : undefined, id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: shopPrice(RARITIES.includes(i.rarity) ? i.rarity : 'common'), onShop: !!i.onShop, free: !!i.free, inGacha: !!i.inGacha, createdAt: i.createdAt || 0 });
   const SLOTS = { icon: 'iconId', frame: 'frameId', card: 'cardId', character: 'charId' };
   // 同梱の初期アイテム（画像ファイル）。slot ごとの装備可能ID
   const BUILTIN = { icon: ['default', 'default2'], character: ['char-m', 'char-f'] };
@@ -380,10 +381,10 @@ export function mountApi(app) {
     const owned = new Set(u.ownedItems);
     let result; let sand = 0;
     if (it.isSet) {
-      const items = it.items.map((x) => { const dup = owned.has(x.id); if (dup) sand += g.dupSand[rarityOf(x)]; owned.add(x.id); return { ...meta(x), duplicate: dup }; });
+      const items = it.items.map((x) => { const dup = owned.has(x.id); if (dup) sand += g.dupSand[rarityOf(x)]; own(owned, x); return { ...meta(x), duplicate: dup }; });
       result = { kind: 'set', set: { id: it.id, name: it.name, rarity: 'legendary' }, items, duplicate: items.every((x) => x.duplicate), sand };
     } else {
-      const dup = owned.has(it.id); sand = dup ? g.dupSand[it.rarity] : 0; owned.add(it.id);
+      const dup = owned.has(it.id); sand = dup ? g.dupSand[it.rarity] : 0; own(owned, it);
       result = { kind: 'item', item: meta(it), duplicate: dup, sand };
     }
     pity[gc.id] = 0; // Firestoreのmergeでは削除できないので0に戻す
@@ -417,7 +418,7 @@ export function mountApi(app) {
           const items = it.items.map((x) => {
             const dup = owned.has(x.id);
             if (dup) sand += g.dupSand[rarityOf(x)];
-            owned.add(x.id);
+            own(owned, x);
             return { ...meta(x), duplicate: dup };
           });
           sandGain += sand;
@@ -426,7 +427,7 @@ export function mountApi(app) {
         }
         const dup = owned.has(it.id);
         const sand = dup ? g.dupSand[it.rarity] : 0;
-        owned.add(it.id);
+        own(owned, it);
         sandGain += sand;
         results.push({ kind: 'item', item: meta(it), duplicate: dup, sand });
       } else {

@@ -39,11 +39,14 @@ export async function poolFor(g) {
   const [items, sets] = await Promise.all([store.colList('items'), store.colList('sets')]);
   const idSet = new Set(g.itemIds); const sIdSet = new Set(g.setIds);
   const normal = g.kind === 'normal';
-  const its = items.filter((i) => i.type !== 'bgm' && RARITIES.includes(i.rarity) && (idSet.has(i.id) || (normal && i.inGacha)));
   const byId = new Map(items.map((i) => [i.id, i]));
+  // キャラに紐づいたアイコンは、単体ではガチャから出ない（キャラを引くと一緒に付く）
+  const linked = new Set(items.filter((i) => i.type === 'character' && i.linkedIconId).map((i) => i.linkedIconId));
+  const withIcon = (i) => (i.type === 'character' && byId.get(i.linkedIconId) ? { ...i, _icon: byId.get(i.linkedIconId) } : i);
+  const its = items.filter((i) => i.type !== 'bgm' && !linked.has(i.id) && RARITIES.includes(i.rarity) && (idSet.has(i.id) || (normal && i.inGacha))).map(withIcon);
   const ss = sets
     .filter((s) => sIdSet.has(s.id) || (normal && s.inGacha !== false))
-    .map((s) => ({ id: s.id, name: s.name, rarity: 'legendary', isSet: true, items: (s.itemIds || []).map((x) => byId.get(x)).filter(Boolean) }))
+    .map((s) => ({ id: s.id, name: s.name, rarity: 'legendary', isSet: true, items: (s.itemIds || []).map((x) => byId.get(x)).filter(Boolean).map(withIcon) }))
     .filter((s) => s.items.length > 0);
   return [...its, ...ss];
 }

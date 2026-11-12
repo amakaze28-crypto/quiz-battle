@@ -20,7 +20,7 @@ const loadDove = () => {
   return doveLoad;
 };
 const doveResults = (results) => results.map((r, i) => {
-  if (r.kind === 'item') return { id: `${i}-${r.item.id}`, name: r.item.name, rarity: DOVE_R[r.item.rarity], image: abs(srcOf(r.item)), description: `${TYPE_LABEL[r.item.type]}　${r.duplicate ? `被り → 砂 +${r.sand}` : 'NEW!'}` };
+  if (r.kind === 'item') return { id: `${i}-${r.item.id}`, name: r.item.name, rarity: DOVE_R[r.item.rarity], image: abs(srcOf(r.item)), description: `${TYPE_LABEL[r.item.type]}${r.item.iconBonus ? `＋アイコン「${r.item.iconBonus}」` : ''}　${r.duplicate ? `被り → 砂 +${r.sand}` : 'NEW!'}` };
   if (r.kind === 'set') return { id: `${i}-${r.set.id}`, name: r.set.name, rarity: 'SSR', images: r.items.map((x) => abs(srcOf(x))), description: `セット（${r.items.length}点）${r.sand ? `　被り分の砂 +${r.sand}` : ''}` };
   return { id: `${i}-sand`, name: `魔法の砂 +${r.sand}`, rarity: DOVE_R[r.rarity], image: abs('/ui/sand.png'), description: '' };
 });
@@ -51,6 +51,7 @@ function ResultCard({ r, i }) {
           <div className="my-2 w-full flex justify-center"><ItemPreview item={r.item} size="64px" /></div>
           <p className="text-xs font-bold text-white truncate w-full">{r.item.name}</p>
           <p className="text-[10px] text-slate-300">{TYPE_LABEL[r.item.type]}</p>
+          {r.item.iconBonus && <p className="text-[10px] text-sky-300 font-bold truncate w-full">＋アイコン「{r.item.iconBonus}」</p>}
           {r.duplicate
             ? <p className="mt-1 text-[11px] text-amber-300 font-bold">被り → 砂 +{r.sand}</p>
             : <p className="mt-1 text-[11px] text-emerald-300 font-extrabold">NEW!</p>}
