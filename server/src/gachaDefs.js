@@ -17,6 +17,7 @@ export function normalizeGacha(id, d = {}) {
     order: Number(d.order) || 0,
     itemIds: Array.isArray(d.itemIds) ? d.itemIds.filter((x) => typeof x === 'string') : [],
     setIds: Array.isArray(d.setIds) ? d.setIds.filter((x) => typeof x === 'string') : [],
+    pickupIds: Array.isArray(d.pickupIds) ? [...new Set(d.pickupIds.filter((x) => typeof x === 'string'))].slice(0, 30) : [], // ピックアップ（同じレア度の中で、出る確率が2倍）
     rates: d.rates && typeof d.rates === 'object' ? (({ cost, ...r }) => r)(mergeGacha({ ...settings().gacha, ...d.rates })) : null, // null = 共通の確率設定を使う
     createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0,
   };

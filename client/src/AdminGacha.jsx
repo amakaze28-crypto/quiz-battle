@@ -151,7 +151,7 @@ function GachaEditor({ user, g, items, sets, common, onSaved, onCancel }) {
   const save = async () => {
     const body = {
       name: f.name, cost: f.cost === '' || f.cost === null ? null : Number(f.cost), enabled: f.enabled,
-      startAt: f.startAt, endAt: f.endAt, itemIds: f.itemIds, setIds: f.setIds,
+      startAt: f.startAt, endAt: f.endAt, itemIds: f.itemIds, setIds: f.setIds, pickupIds: f.pickupIds || [],
       rates: f.rates || null,
       ...(f.bannerNew !== undefined ? { banner: f.bannerNew } : {}),
     };
@@ -180,6 +180,10 @@ function GachaEditor({ user, g, items, sets, common, onSaved, onCancel }) {
       <div className="rounded-lg bg-black/20 p-3">
         <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={!!f.rates} onChange={(e) => setF({ ...f, rates: e.target.checked ? structuredClone((({ cost, ...r }) => r)(normRates(common))) : null })} />このガチャ専用の確率にする（オフ＝共通の確率設定を使う）</label>
         {f.rates && <div className="mt-3"><GachaRatesEditor v={f.rates} onChange={(r) => setF({ ...f, rates: r })} /></div>}
+      </div>
+      <div>
+        <p className="text-sm font-bold mb-1">ピックアップ（そのレア度でアイテムが出たとき、選んだアイテムは2倍出やすい）</p>
+        <ItemPicker items={items} value={f.pickupIds || []} onChange={(v) => setF({ ...f, pickupIds: v })} filter={normal ? (i) => i.inGacha : (i) => f.itemIds.includes(i.id)} />
       </div>
       {!normal && (
         <>

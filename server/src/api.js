@@ -289,6 +289,7 @@ export function mountApi(app) {
   }));
 
   // ---- ガチャ ----
+  const PICKUP_X = 2; // ピックアップは、同じレア度の中で出やすさ2倍
   const wpick = (entries) => {
     const total = entries.reduce((s, [, w]) => s + w, 0);
     if (total <= 0) return null;
@@ -335,14 +336,23 @@ export function mountApi(app) {
     if (!gc) return res.status(404).json({ error: 'このガチャは終了しました' });
     const g = gachaRates(gc);
     const pool = await poolFor(gc);
+    const pk = new Set(gc.pickupIds || []);
+    const pickW = (i) => (pk.has(i.id) ? PICKUP_X : 1);
     const owned = new Set(u.ownedItems);
     const brief = (i) => ({ ...meta(i), owned: owned.has(i.id) });
     res.json({
       gacha: gachaMeta(gc, Date.now()),
       coins: u.coins, sand: u.sand, cost: costOf(gc), rates: rates(g, pool), sandAmounts: g.sandAmounts, dupSand: g.dupSand,
-      pool: pool.sort((a, b) => RANK[a.rarity] - RANK[b.rarity]).map((i) => i.isSet
-        ? { id: i.id, name: i.name, type: 'set', rarity: 'legendary', owned: i.items.every((x) => owned.has(x.id)), items: i.items.map(brief) }
-        : brief(i)),
+      pickupIds: gc.pickupIds || [],
+      // 上ほどレアなアイテム。ピックアップ → 新しい順。rate = 1回引いて、そのアイテムが出る確率(%)
+      pool: pool.sort((a, b) => (RANK[b.rarity] - RANK[a.rarity]) || (Number(pk.has(b.id)) - Number(pk.has(a.id))) || ((b.createdAt || 0) - (a.createdAt || 0))).map((i) => {
+        const same = pool.filter((x) => x.rarity === i.rarity);
+        const rate = Math.round(((rates(g, pool).itemRarity[i.rarity] || 0) * pickW(i) / same.reduce((s, x) => s + pickW(x), 0)) * 100) / 100;
+        const base = i.isSet
+          ? { id: i.id, name: i.name, type: 'set', rarity: 'legendary', owned: i.items.every((x) => owned.has(x.id)), items: i.items.map(brief) }
+          : brief(i);
+        return { ...base, rate, pickup: pk.has(i.id) };
+      }),
     });
   }));
 
@@ -355,6 +365,7 @@ export function mountApi(app) {
     const total = costOf(gc) * count;
     if (u.coins < total) return res.status(400).json({ error: `コインが足りません（${total}コイン必要）` });
     const pool = await poolFor(gc);
+    const pickW = (i) => ((gc.pickupIds || []).includes(i.id) ? PICKUP_X : 1);
     const rt = rates(g, pool);
     const owned = new Set(u.ownedItems);
     let sandGain = 0;
@@ -364,7 +375,7 @@ export function mountApi(app) {
       const kind = rt.has[rar] && Math.random() * 100 < rt.itemPercent ? 'item' : 'sand';
       if (kind === 'item') {
         const cand = pool.filter((i) => i.rarity === rar);
-        const it = cand[Math.floor(Math.random() * cand.length)];
+        const it = wpick(cand.map((i) => [i, pickW(i)])); // ピックアップは2倍の重み
         if (it.isSet) {
           // セット: 中身をまとめて獲得。すでに持っているものは砂に変わる
           let sand = 0;

@@ -188,6 +188,9 @@ export function ItemsAdmin({ user }) {
   const blank = { name: '', type: 'icon', rarity: 'common', price: 100, onShop: true, inGacha: true, image: '' };
   const [f, setF] = useState(blank);
   const [filter, setFilter] = useState('all');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState('new');
+  const [bulk, setBulk] = useState({ rarity: 'common', type: 'all' });
   const [msg, setMsg] = useState(null);
   const [view, setView] = useState(null);
   const [viewEdit, setViewEdit] = useState(false);
@@ -203,15 +206,18 @@ export function ItemsAdmin({ user }) {
     catch (e) { setMsg({ ok: false, text: e.message }); }
   };
   const patch = async (i, body) => { try { await adminApi(user, `/items/${i.id}`, { method: 'PUT', body }); load(); } catch (e) { alert(e.message); } };
-  const shown = data?.filter((i) => i.type !== 'bgm' && (filter === 'all' || i.type === filter)); // 戦闘BGMは「音源」タブで管理
+  const RK = Object.fromEntries(RARITIES.map((x, n) => [x, n]));
+  const SORTS = { new: ['新しい順', (a, b) => (b.createdAt || 0) - (a.createdAt || 0)], old: ['古い順', (a, b) => (a.createdAt || 0) - (b.createdAt || 0)], rare: ['レア度が高い順', (a, b) => (RK[b.rarity] - RK[a.rarity]) || (b.createdAt || 0) - (a.createdAt || 0)], common: ['レア度が低い順', (a, b) => (RK[a.rarity] - RK[b.rarity]) || (b.createdAt || 0) - (a.createdAt || 0)], name: ['名前順', (a, b) => String(a.name).localeCompare(String(b.name), 'ja')], type: ['種類順', (a, b) => String(a.type).localeCompare(String(b.type)) || (RK[b.rarity] - RK[a.rarity])] };
+  const needle = q.trim().toLowerCase();
+  const shown = data?.filter((i) => i.type !== 'bgm' && (filter === 'all' || i.type === filter) && (!needle || String(i.name).toLowerCase().includes(needle))).sort(SORTS[sort][1]); // 戦闘BGMは「音源」タブで管理
+  const bulkShop = async (onShop) => {
+    const label = `${RARITY[bulk.rarity].label}の${bulk.type === 'all' ? 'すべて' : TYPE_LABEL[bulk.type]}を${onShop ? '販売' : '非売'}にしますか？（みんなが使えるアイテムは対象外）`;
+    if (!window.confirm(label)) return;
+    try { const r = await adminApi(user, '/items/bulk-shop', { method: 'POST', body: { rarity: bulk.rarity, type: bulk.type, onShop } }); setMsg({ ok: true, text: `${r.changed}個を${onShop ? '販売' : '非売'}にしました` }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); }
+  };
 
   return (
     <div>
-      <div className={`${card} mb-5 max-w-xl`}>
-        <h2 className="font-bold mb-1">シンプルな素材をまとめて追加</h2>
-        <p className="text-xs text-slate-400 mb-2">アイコンリング16色・バナー16色（コモン）と、柄つきのリング32種・バナー32種（アンコモン）をガチャに入れます（同じ名前があれば追加しません）。</p>
-        <button onClick={async () => { if (!window.confirm('シンプルな素材と柄つきの素材を、ガチャに追加しますか？')) return; try { const r = await adminApi(user, '/seed-simple-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: r.added ? `${r.added}個を追加しました` : 'すでに追加済みです' }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); } }} className={`${btn} bg-sky-700 font-bold`}>素材をまとめて追加する</button>
-      </div>
       <h2 className="font-bold mb-2">アイテムを追加</h2>
       <div className={`${card} space-y-3 mb-5 max-w-xl`}>
         <div className="flex gap-2">
@@ -247,6 +253,20 @@ export function ItemsAdmin({ user }) {
         <button onClick={add} disabled={!f.image || !f.name} className={`${btn} bg-emerald-500 font-bold disabled:opacity-40`}>追加</button>
       </div>
 
+      <div className={`${card} mb-4 max-w-xl`}>
+        <h2 className="font-bold mb-1">販売・非売をまとめて切り替え（レア度ごと）</h2>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <select className={`${input} !w-auto`} value={bulk.rarity} onChange={(e) => setBulk({ ...bulk, rarity: e.target.value })}>{RARITIES.map((x) => <option key={x} value={x}>{RARITY[x].label}</option>)}</select>
+          <select className={`${input} !w-auto`} value={bulk.type} onChange={(e) => setBulk({ ...bulk, type: e.target.value })}><option value="all">すべての種類</option>{Object.keys(TYPE_LABEL).map((k) => <option key={k} value={k}>{TYPE_LABEL[k]}</option>)}</select>
+          <button onClick={() => bulkShop(true)} className={`${btn} bg-emerald-600 font-bold`}>すべて販売にする</button>
+          <button onClick={() => bulkShop(false)} className={`${btn} bg-slate-600 font-bold`}>すべて非売にする</button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前で検索" className={`${input} w-40`} />
+        <select className={`${input} !w-auto`} value={sort} onChange={(e) => setSort(e.target.value)}>{Object.entries(SORTS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}</select>
+        <span className="text-xs text-slate-400">{shown?.length ?? 0}件</span>
+      </div>
       <div className="flex items-center gap-2 mb-2">
         <h2 className="font-bold mr-2">登録済み</h2>
         {['all', ...Object.keys(TYPE_LABEL)].map((k) => (

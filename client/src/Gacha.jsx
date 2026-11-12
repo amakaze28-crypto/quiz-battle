@@ -104,13 +104,12 @@ function RatesModal({ info: raw, onClose }) {
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-amber-200 text-right mb-2">レア度が決まったあと：アイテム {info.rates.itemPercent ?? '-'}%　／　砂 {info.rates.sandPercent ?? '-'}%</p>
-        <p className="text-xs text-slate-400 mb-4">※ 先にレア度が決まり、そのあとアイテムか砂かが決まります。そのレア度のアイテムが入っていないときは砂になります。被ったアイテムは魔法の砂に変わります。</p>
         <h3 className="font-bold mb-2">排出アイテム（{info.pool.length}）</h3>
         <ul className="space-y-1.5">
           {info.pool.map((i) => (
             <li key={i.id} className="flex items-center gap-2 text-sm">
-              <RarityTag rarity={i.rarity} /><span className="truncate flex-1">{i.name}</span><span className="text-xs text-slate-400">{i.type === 'set' ? `セット${i.items.length}点` : TYPE_LABEL[i.type]}</span>
+              <RarityTag rarity={i.rarity} /><span className="truncate flex-1">{i.name}{i.pickup && <span className="ml-1.5 text-xs font-bold text-amber-300">★ピックアップ</span>}</span><span className="text-xs text-slate-400">{i.type === 'set' ? `セット${i.items.length}点` : TYPE_LABEL[i.type]}</span>
+              <span className="text-xs font-bold text-sky-200 w-14 text-right">{i.rate ?? '-'}%</span>
               {i.owned && <span className="text-xs text-emerald-400">所持</span>}
             </li>
           ))}
