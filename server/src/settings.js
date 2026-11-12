@@ -39,11 +39,14 @@ export function mergeGacha(src = {}) {
     sandPercent: Math.round(Math.min(100, wnum(src.sandPercent ?? oldSand, d.sandPercent)) * 10) / 10,
     rarityPercent: Object.fromEntries(RARITIES.map((r) => [r, Math.round(Math.min(100, wnum(rar?.[r], d.rarityPercent[r])) * 10) / 10])),
     sandAmounts: per('sandAmounts', (v, fb) => num(v, 0, 10000000, fb)),
-    dupSand: per('dupSand', (v, fb) => num(v, 0, 10000000, fb)),
+    dupSand: per('sandAmounts', (v, fb) => num(v, 0, 10000000, fb)), // 被ったときの砂は、砂が出たときの量と同じ（固定）
   };
 }
 // そのガチャの確率設定（ガチャ専用の設定があればそれ、なければ共通設定）
 export const gachaRates = (gc) => (gc?.rates ? mergeGacha({ ...current.gacha, ...gc.rates }) : current.gacha);
+
+// ショップの値段：そのレア度で砂が出たときの量の4倍（固定）
+export const shopPrice = (rarity) => (current.gacha.sandAmounts[rarity] ?? current.gacha.sandAmounts.common) * 4;
 
 export const mergeMaintenance = (src = {}) => ({ on: !!src.on, message: String(src.message || '').slice(0, 200) });
 

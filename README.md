@@ -224,3 +224,7 @@ cd client && npm install && cp .env.example .env && npm run dev   # :5173
 
 ## バナー（台紙）の元画像
 `docs/banner-template.png`（ガイド付き）と `docs/banner-template-guides.png`（ガイドだけ・透過）。アイコン・名前板・ランク板・バッジ・キャラ表示エリアの位置を示しています。
+
+## 砂・ショップ価格
+- 被ったときの砂 = 砂が出たときの量（レア度ごと、固定）。
+- ショップの値段 = そのレア度の砂の量 × 4（固定。管理画面では価格を入力しない）。

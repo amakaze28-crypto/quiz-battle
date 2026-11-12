@@ -85,7 +85,8 @@ function Results({ data, onClose }) {
   );
 }
 
-function RatesModal({ info, onClose }) {
+function RatesModal({ info: raw, onClose }) {
+  const info = { ...raw, rates: raw.rates || {}, sandAmounts: raw.sandAmounts || {}, pool: raw.pool || [] }; // サーバーが古くても落ちないように
   return (
     <div className="fixed inset-0 z-50 bg-black/75 overflow-y-auto p-4" onClick={onClose}>
       <div className="max-w-md mx-auto my-4 rounded-2xl bg-[#14213d] border border-[#c9a24a]/70 p-5 text-white" onClick={(e) => e.stopPropagation()}>
@@ -97,13 +98,13 @@ function RatesModal({ info, onClose }) {
             {RARITIES.map((x) => (
               <tr key={x} className="border-t border-white/10">
                 <td className="py-1.5 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
-                <td className="font-bold">{info.rates.rarity[x]}%</td>
-                <td>{info.rates.itemRarity[x]}%</td><td>{info.rates.sandRarity[x]}%</td><td>{info.sandAmounts[x]}</td><td>+{info.dupSand[x]}</td>
+                <td className="font-bold">{info.rates.rarity?.[x] ?? '-'}%</td>
+                <td>{info.rates.itemRarity?.[x] ?? 0}%</td><td>{info.rates.sandRarity?.[x] ?? 0}%</td><td>{info.sandAmounts?.[x]}</td><td>+{info.sandAmounts?.[x]}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-amber-200 text-right mb-2">レア度が決まったあと：アイテム {info.rates.itemPercent}%　／　砂 {info.rates.sandPercent}%</p>
+        <p className="text-xs text-amber-200 text-right mb-2">レア度が決まったあと：アイテム {info.rates.itemPercent ?? '-'}%　／　砂 {info.rates.sandPercent ?? '-'}%</p>
         <p className="text-xs text-slate-400 mb-4">※ 先にレア度が決まり、そのあとアイテムか砂かが決まります。そのレア度のアイテムが入っていないときは砂になります。被ったアイテムは魔法の砂に変わります。</p>
         <h3 className="font-bold mb-2">排出アイテム（{info.pool.length}）</h3>
         <ul className="space-y-1.5">

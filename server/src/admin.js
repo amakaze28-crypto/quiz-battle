@@ -3,7 +3,7 @@ import * as store from './store.js';
 import { normalizeQuestion, reloadQuestions, fileName, catOf } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
 import { getEmperorSet } from './emperors.js';
-import { saveSettings, settings, setMaintenance } from './settings.js';
+import { saveSettings, settings, setMaintenance, shopPrice } from './settings.js';
 import * as missions from './missions.js';
 import { listGachas, normalizeGacha, NORMAL_ID, okBannerData, putBanner, clearBannerChunks } from './gachaDefs.js';
 import * as sounds from './sounds.js';
@@ -280,7 +280,7 @@ export function mountAdmin(app, { io, matchmaker }) {
   const RAR = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
   const okImage = (v) => typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 700_000;
   r.get('/items', wrap(async (_req, res) => {
-    res.json({ items: (await store.colList('items')).map(({ image, ...i }) => i).sort((a, b) => b.createdAt - a.createdAt) });
+    res.json({ items: (await store.colList('items')).map(({ image, ...i }) => ({ ...i, price: shopPrice(RAR.includes(i.rarity) ? i.rarity : 'common') })).sort((a, b) => b.createdAt - a.createdAt) });
   }));
   r.post('/items', wrap(async (req, res) => {
     const name = String(req.body.name || '').trim().slice(0, 30);

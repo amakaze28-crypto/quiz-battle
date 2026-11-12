@@ -11,7 +11,7 @@ import { getEmperorSet } from './emperors.js';
 import { getRecent } from './recent.js';
 import { cardLayouts, frameFits } from './cardlayouts.js';
 import { maintenance } from './settings.js';
-import { gachaRates } from './settings.js';
+import { gachaRates, shopPrice } from './settings.js';
 import { listGachas, poolFor, isActive, costOf, NORMAL_ID, readBanner } from './gachaDefs.js';
 import { listSounds, soundData } from './sounds.js';
 import * as badges from './badges.js';
@@ -204,7 +204,7 @@ export function mountApi(app) {
   }));
 
   // ---- ショップ / ガチャ / 装備 ----
-  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: i.price || 0, onShop: !!i.onShop, free: !!i.free, inGacha: !!i.inGacha, createdAt: i.createdAt || 0 });
+  const meta = (i) => ({ id: i.id, name: i.name, type: i.type, rarity: i.rarity, price: shopPrice(RARITIES.includes(i.rarity) ? i.rarity : 'common'), onShop: !!i.onShop, free: !!i.free, inGacha: !!i.inGacha, createdAt: i.createdAt || 0 });
   const SLOTS = { icon: 'iconId', frame: 'frameId', card: 'cardId', character: 'charId' };
   // 同梱の初期アイテム（画像ファイル）。slot ごとの装備可能ID
   const BUILTIN = { icon: ['default', 'default2'], character: ['char-m', 'char-f'] };
@@ -216,7 +216,7 @@ export function mountApi(app) {
     const all = await store.colList('items');
     const items = all
       .filter((i) => i.onShop || i.free || u.ownedItems.includes(i.id))
-      .sort((a, b) => (RANK[rarityOf(a)] - RANK[rarityOf(b)]) || (a.price - b.price) || (a.createdAt - b.createdAt))
+      .sort((a, b) => (RANK[rarityOf(a)] - RANK[rarityOf(b)]) || (a.createdAt - b.createdAt))
       .map((i) => ({ ...meta(i), owned: !!i.free || u.ownedItems.includes(i.id) }));
     const base = (id, name, type) => ({ id, name, type, rarity: 'common', price: 0, owned: true, onShop: false, inGacha: false });
     items.unshift(base('default', '初期アイコン（男性）', 'icon'), base('default2', '初期アイコン（女性）', 'icon'), base('char-m', '初期キャラ（男性）', 'character'), base('char-f', '初期キャラ（女性）', 'character'));
@@ -238,8 +238,9 @@ export function mountApi(app) {
     if (!item || !item.onShop) return res.status(404).json({ error: 'この商品は購入できません' });
     if (item.free) return res.status(400).json({ error: 'すでに持っています' });
     if (u.ownedItems.includes(item.id)) return res.status(400).json({ error: 'すでに持っています' });
-    if (u.sand < item.price) return res.status(400).json({ error: '魔法の砂が足りません' });
-    await store.updateUser(u.uid, { sand: u.sand - item.price, ownedItems: [...u.ownedItems, item.id] });
+    const price = shopPrice(rarityOf(item));
+    if (u.sand < price) return res.status(400).json({ error: '魔法の砂が足りません' });
+    await store.updateUser(u.uid, { sand: u.sand - price, ownedItems: [...u.ownedItems, item.id] });
     res.json(withProfile(req, await fresh(req)));
   }));
 
@@ -292,7 +293,7 @@ export function mountApi(app) {
   function rates(g, pool) {
     const pc = g.rarityPercent;
     const sw = RARITIES.reduce((t, x) => t + pc[x], 0);
-    const pct = (v) => Math.round(v * 100) / 100;
+    const pct = (v) => Math.round(v * 10000) / 100;
     const share = (x) => (sw > 0 ? pc[x] / sw : x === 'common' ? 1 : 0);
     const itemShare = Math.min(1, Math.max(0, 1 - g.sandPercent / 100));
     const has = Object.fromEntries(RARITIES.map((x) => [x, pool.some((i) => i.rarity === x)]));
@@ -301,7 +302,7 @@ export function mountApi(app) {
     const sandRarity = Object.fromEntries(RARITIES.map((x) => [x, pct(share(x) - (has[x] ? share(x) * itemShare : 0))]));
     return {
       rarity, itemRarity, sandRarity, has,
-      item: pct(RARITIES.reduce((t, x) => t + itemRarity[x], 0)), sand: pct(RARITIES.reduce((t, x) => t + sandRarity[x], 0)),
+      item: Math.round(RARITIES.reduce((t, x) => t + itemRarity[x], 0) * 100) / 100, sand: Math.round(RARITIES.reduce((t, x) => t + sandRarity[x], 0) * 100) / 100,
       itemPercent: pct(itemShare), sandPercent: pct(1 - itemShare), // レア度が決まった後の、アイテム／砂の割合
     };
   }

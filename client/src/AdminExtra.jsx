@@ -235,7 +235,7 @@ export function ItemsAdmin({ user }) {
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={f.onShop} onChange={(e) => setF({ ...f, onShop: e.target.checked })} />ショップで販売</label>
-          <label className="flex items-center gap-2">価格(魔法の砂)<input type="number" min={0} className={`${input} w-28`} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>
+          <span className="text-xs text-slate-400">価格はレア度で自動（そのレア度の砂の量×4）</span>
           <label className="flex items-center gap-2"><input type="checkbox" checked={f.inGacha} onChange={(e) => setF({ ...f, inGacha: e.target.checked })} />ガチャに入れる</label>
         </div>
         {msg && <p className={`text-sm ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>}
@@ -262,7 +262,6 @@ export function ItemsAdmin({ user }) {
             <select value={i.rarity} onChange={(e) => patch(i, { rarity: e.target.value })} className="rounded bg-[#0e1013] border border-white/10 px-2 py-1 text-sm">
               {RARITIES.map((x) => <option key={x} value={x}>{RARITY[x].label}</option>)}
             </select>
-            <button onClick={() => { const p = window.prompt('新しい価格（魔法の砂）', i.price); if (p !== null) patch(i, { price: Number(p) }); }} className={`${btn} bg-slate-700`}>価格</button>
             <button onClick={() => { const n = window.prompt('新しい名前', i.name); if (n) patch(i, { name: n }); }} className={`${btn} bg-slate-700`}>名前</button>
             {(i.type === 'card' || i.type === 'frame') && <button onClick={() => { setViewEdit(true); setView(i); }} className={`${btn} bg-sky-700 font-bold`}>位置調整</button>}
             <button onClick={() => patch(i, { onShop: !i.onShop })} className={`${btn} ${i.onShop ? 'bg-sky-600' : 'bg-slate-600'}`}>{i.onShop ? '販売中' : '非売'}</button>

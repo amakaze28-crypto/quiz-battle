@@ -105,18 +105,18 @@ function GachaRatesEditor({ v: raw, onChange }) {
       <div>
         <p className="text-sm font-bold mb-1">③ 砂の量</p>
         <table className="w-full text-sm">
-          <thead><tr className="text-slate-400 text-left"><th className="pb-1 font-normal">レア度</th><th className="font-normal">砂が出たときの量</th><th className="font-normal">アイテムが被ったときの砂</th></tr></thead>
+          <thead><tr className="text-slate-400 text-left"><th className="pb-1 font-normal">レア度</th><th className="font-normal">砂の量（被り時も同じ）</th><th className="font-normal">ショップ価格（×4）</th></tr></thead>
           <tbody>
             {RARITIES.map((x) => (
               <tr key={x}>
                 <td className="py-0.5 font-bold" style={{ color: RARITY[x].color }}>{RARITY[x].label}</td>
                 <td><input type="number" min={0} className={pctInput} value={v.sandAmounts[x]} onChange={(e) => set({ sandAmounts: { ...v.sandAmounts, [x]: Math.max(0, Math.round(Number(e.target.value) || 0)) } })} /></td>
-                <td><input type="number" min={0} className={pctInput} value={v.dupSand[x]} onChange={(e) => set({ dupSand: { ...v.dupSand, [x]: Math.max(0, Math.round(Number(e.target.value) || 0)) } })} /></td>
+                <td className="text-slate-300">{(Number(v.sandAmounts[x]) || 0) * 4}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-slate-400 mt-1">「砂が出たときの量」は、①で砂が出たとき、②で決まったレア度ぶんの量です。「被ったとき」は、持っているアイテムがもう一度出たときにもらえる砂です。</p>
+        <p className="text-xs text-slate-400 mt-1">「砂の量」は、砂が出たとき、そのレア度ぶんの量です。アイテムが被ったときにもらえる砂も、この量です。ショップの値段は、そのレア度の砂の量の4倍に固定されます。</p>
       </div>
     </div>
   );
@@ -435,7 +435,7 @@ function BattleTracksAdmin({ user }) {
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="radio" checked={f.mode === 'free'} onChange={() => setF({ ...f, mode: 'free' })} />みんなが使える（無料）</label>
           <label className="flex items-center gap-2"><input type="radio" checked={f.mode === 'shop'} onChange={() => setF({ ...f, mode: 'shop' })} />ショップで販売</label>
-          {f.mode === 'shop' && <label className="flex items-center gap-2">価格(砂)<input type="number" min={0} className={`${input} w-24`} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>}
+          {f.mode === 'shop' && <span className="text-xs text-slate-400">価格はレア度で自動（砂の量×4）</span>}
         </div>
         {f.mode === 'shop' && (
           <div className="flex flex-wrap gap-1.5">
@@ -457,8 +457,7 @@ function BattleTracksAdmin({ user }) {
             <button onClick={() => play(i)} className={`${btn} bg-slate-700`}>{playing === i.id ? '■ 停止' : '▶ 試聴'}</button>
             <button onClick={() => patch(i, i.free ? { free: false, onShop: true } : { free: true })} className={`${btn} ${i.free ? 'bg-emerald-600' : 'bg-slate-600'}`}>{i.free ? '無料公開中' : '無料にする'}</button>
             {!i.free && <button onClick={() => patch(i, { onShop: !i.onShop })} className={`${btn} ${i.onShop ? 'bg-sky-600' : 'bg-slate-600'}`}>{i.onShop ? '販売中' : '非売'}</button>}
-            {!i.free && <button onClick={() => { const p = window.prompt('新しい価格（魔法の砂）', i.price); if (p !== null) patch(i, { price: Number(p) }); }} className={`${btn} bg-slate-700`}>価格</button>}
-            <label className={`${btn} bg-sky-700 cursor-pointer`}>音源を差し替え<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" className="hidden" onChange={(e) => { replace(i, e.target.files?.[0]); e.target.value = ''; }} /></label>
+                        <label className={`${btn} bg-sky-700 cursor-pointer`}>音源を差し替え<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" className="hidden" onChange={(e) => { replace(i, e.target.files?.[0]); e.target.value = ''; }} /></label>
             <button onClick={() => del(i)} className={`${btn} bg-red-700`}>削除</button>
           </li>
         ))}
