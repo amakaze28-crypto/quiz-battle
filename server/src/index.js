@@ -27,6 +27,7 @@ await loadSettings();
 await seedIfEmpty();
 await reloadQuestions();
 await missions.reloadDefs();
+await missions.seedDailyIfNeeded();
 startEmperorRefresh();
 await badges.reloadBadgeDefs();
 startSeasonTimer();

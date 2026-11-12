@@ -43,8 +43,22 @@ export function weekKey(now = Date.now()) {
   d.setUTCDate(d.getUTCDate() - day);
   return d.toISOString().slice(0, 10);
 }
-const keyOf = (d) => (d.tab === 'weekly' ? weekKey() : 'once');
-const activeNow = (d, now = Date.now()) => d.enabled !== false && (!d.startAt || now >= d.startAt) && (!d.endAt || now <= d.endAt);
+const keyOf = (d) => (d.tab === 'daily' ? dayKey() : d.tab === 'weekly' ? weekKey() : 'once');
+// デイリー／ウィークリーは日付を持たず、有効なら常に回る（毎日0時／毎週月曜0時に進捗リセット）。スペシャルだけ期間あり
+const activeNow = (d, now = Date.now()) => d.enabled !== false && (d.tab !== 'special' || ((!d.startAt || now >= d.startAt) && (!d.endAt || now <= d.endAt)));
+// 管理画面にデイリーが登録されていれば、それを使う（なければ従来の固定3つ）
+export const dailyFromDefs = () => defs.some((d) => d.tab === 'daily');
+
+// 初回だけ、従来のデイリー3つ（ログイン・5マッチ・3勝）を管理画面の定義として登録する
+export async function seedDailyIfNeeded() {
+  if (defs.some((d) => d.tab === 'daily')) return;
+  if (await store.colGet('meta', 'dailySeeded')) return;
+  const r = settings().missionRewards;
+  const base = [['ログインする', 'login', 1, r.login], ['5マッチプレイする', 'play', 5, r.play], ['3勝する', 'win', 3, r.win]];
+  for (const [i, [title, type, goal, coins]] of base.entries()) await store.colAdd('missionDefs', { tab: 'daily', type, title, goal, coins: coins || 0, sand: 0, startAt: 0, endAt: 0, enabled: true, order: i });
+  await store.colSet('meta', 'dailySeeded', { at: Date.now() });
+  await reloadDefs();
+}
 
 // 出来事(ev: {login, play, win, correct})を反映した mprog を返す
 export function recordEvent(u, ev) {
@@ -75,7 +89,7 @@ export function extraView(u, tab) {
     };
   });
 }
-export const claimableExtra = (u) => [...extraView(u, 'weekly'), ...extraView(u, 'special')].filter((m) => m.done && !m.claimed).length;
+export const claimableExtra = (u) => [...(dailyFromDefs() ? extraView(u, 'daily') : []), ...extraView(u, 'weekly'), ...extraView(u, 'special')].filter((m) => m.done && !m.claimed).length;
 
 export function markClaimed(u, id) {
   const prog = { ...(u.mprog || {}) };
@@ -85,7 +99,7 @@ export function markClaimed(u, id) {
 }
 
 export function normalizeDef(b) {
-  const tab = b.tab === 'special' ? 'special' : 'weekly';
+  const tab = ['daily', 'weekly', 'special'].includes(b.tab) ? b.tab : 'weekly';
   const type = Object.keys(TYPES).includes(b.type) ? b.type : 'play';
   const title = String(b.title || '').trim().slice(0, 40);
   const goal = Math.max(1, Math.min(100000, Math.round(Number(b.goal) || 0)));
@@ -94,6 +108,6 @@ export function normalizeDef(b) {
   return { value: {
     tab, type, title, goal,
     coins: Math.max(0, Math.round(Number(b.coins) || 0)), sand: Math.max(0, Math.round(Number(b.sand) || 0)),
-    startAt: t(b.startAt), endAt: t(b.endAt), enabled: b.enabled !== false, order: Math.round(Number(b.order) || 0),
+    startAt: tab === 'special' ? t(b.startAt) : 0, endAt: tab === 'special' ? t(b.endAt) : 0, enabled: b.enabled !== false, order: Math.round(Number(b.order) || 0),
   } };
 }

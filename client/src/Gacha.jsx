@@ -120,6 +120,28 @@ function RatesModal({ info: raw, onClose }) {
   );
 }
 
+function PityModal({ info, busy, onPick, onClose }) {
+  const list = (info.pool || []).filter((i) => i.rarity === 'legendary');
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 overflow-y-auto p-4" onClick={onClose}>
+      <div className="max-w-md mx-auto my-4 rounded-2xl bg-[#14213d] border border-[#c9a24a]/70 p-5 text-white" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-2"><h2 className="font-bold text-lg">天井：レジェンダリーを1つ選ぶ</h2><button onClick={onClose} className="text-slate-400 text-xl">✕</button></div>
+        <p className="text-xs text-slate-300 mb-3">このガチャのレジェンダリーから好きなものを1つ獲得できます。選ぶとゲージは0に戻ります。</p>
+        <ul className="space-y-1.5">
+          {list.map((i) => (
+            <li key={i.id} className="flex items-center gap-2 text-sm">
+              <span className="truncate flex-1">{i.name}{i.type === 'set' && <span className="ml-1.5 text-xs text-slate-400">セット{i.items?.length ? `（${i.items.length}点）` : ''}</span>}</span>
+              {i.owned && <span className="text-xs text-emerald-400">所持</span>}
+              <button disabled={busy} onClick={() => { if (window.confirm(`「${i.name}」を獲得しますか？`)) onPick(i); }} className="rounded-lg px-3 py-1 bg-amber-500 text-black font-bold text-xs disabled:opacity-50">選ぶ</button>
+            </li>
+          ))}
+          {list.length === 0 && <li className="text-slate-400 text-sm">このガチャにレジェンダリーはありません</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function Gacha({ user, g, call, go, summary, onLogout }) {
   const { profile } = g;
   const [list, setList] = useState([]);
@@ -129,9 +151,22 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
   const [result, setResult] = useState(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pityOpen, setPityOpen] = useState(false);
 
   useEffect(() => { callApi(user, '/gacha/list').then((d) => { setList(d.gachas); if (!d.gachas.some((x) => x.id === gid)) setGid('normal'); }).catch((e) => setMsg(e.message)); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setInfo(null); callApi(user, `/gacha/info?id=${encodeURIComponent(gid)}`).then(setInfo).catch((e) => setMsg(e.message)); }, [user, gid, result]);
+
+  const pickPity = async (it) => {
+    if (busy) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await call('/gacha/pity/claim', { method: 'POST', body: { id: gid, itemId: it.id } });
+      setPityOpen(false);
+      try { await loadDove(); await window.DoveGacha.play({ results: doveResults(r.results), sound: true }); } catch (e) { console.error(e); }
+      setResult(r);
+    } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
 
   const pull = async (count) => {
     if (busy) return;
@@ -186,10 +221,12 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
         )}
 
         <Box x={110} y={382} w={804} h={410} className="rounded-2xl overflow-hidden relative flex flex-col items-center justify-center text-center" style={panel}>
-          {cur?.hasBanner ? (
+          {!cur ? (
+            <div className="absolute inset-0 grid place-items-center" style={{ background: '#6b7280', color: '#f3f4f6', fontSize: fs(34), fontWeight: 700 }}>Now loading</div>
+          ) : cur.hasBanner ? (
             <>
               {/* 画像が読み込まれるまでは、灰色の地に「読み込み中...」を出す（画像が来ると上に重なって隠れる） */}
-              <div className="absolute inset-0 grid place-items-center" style={{ background: '#6b7280', color: '#f3f4f6', fontSize: fs(34), fontWeight: 700 }}>読み込み中...</div>
+              <div className="absolute inset-0 grid place-items-center" style={{ background: '#6b7280', color: '#f3f4f6', fontSize: fs(34), fontWeight: 700 }}>Now loading</div>
               <img key={cur.banner} src={`${SERVER_URL}${cur.banner}`} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" />
             </>
           ) : (
@@ -203,7 +240,14 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
             </>
           )}
           {cur?.kind === 'limited' && <span className="absolute left-[2cqw] top-[2cqw] rounded-full px-[2.5cqw] py-[0.6cqw] font-extrabold bg-rose-600 text-white" style={{ fontSize: fs(24) }}>期間限定</span>}
-          {until && <span className="absolute left-[2cqw] bottom-[2cqw] rounded-lg px-[2cqw] py-[0.5cqw] bg-black/65 text-amber-200 font-bold" style={{ fontSize: fs(23) }}>{until}</span>}
+          {until && <span className="absolute left-[2cqw] bottom-[8cqw] rounded-lg px-[2cqw] py-[0.5cqw] bg-black/65 text-amber-200 font-bold" style={{ fontSize: fs(23) }}>{until}</span>}
+          {info?.pity && (
+            <div className="absolute left-[2cqw] bottom-[2cqw] rounded-lg px-[2cqw] py-[0.6cqw] bg-black/65 text-white text-left" style={{ width: '30cqw' }}>
+              <div className="flex justify-between font-bold" style={{ fontSize: fs(21) }}><span className="text-amber-200">天井</span><span>{info.pity.count}/{info.pity.max}</span></div>
+              <div className="rounded-full overflow-hidden bg-white/20" style={{ height: cq(12) }}><div style={{ width: `${Math.min(100, (info.pity.count / info.pity.max) * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#f59e0b,#fde68a)' }} /></div>
+              {info.pity.count >= info.pity.max && <button onClick={() => setPityOpen(true)} className="mt-[0.5cqw] w-full rounded bg-amber-500 text-black font-extrabold" style={{ fontSize: fs(20) }}>レジェンダリーを選ぶ</button>}
+            </div>
+          )}
           <button onClick={() => setRates(true)} disabled={!info} className="absolute right-[2cqw] bottom-[2cqw] rounded-lg px-[2cqw] py-[0.5cqw] bg-black/65 underline text-sky-300" style={{ fontSize: fs(23) }}>提供割合を見る</button>
         </Box>
         {cur?.hasBanner && <Box x={110} y={800} w={804} h={60} className="text-center" style={{ fontSize: fs(34), fontWeight: 900, color: '#fff4d2', textShadow: '0 2px 6px #000' }}>{cur.name}</Box>}
@@ -216,6 +260,7 @@ export default function Gacha({ user, g, call, go, summary, onLogout }) {
         <NavHot go={go} active="gacha" summary={summary} />
       </Stage>
       {result && <Results data={result} onClose={() => setResult(null)} />}
+      {pityOpen && info && <PityModal info={info} busy={busy} onPick={pickPity} onClose={() => setPityOpen(false)} />}
       {rates && info && <RatesModal info={info} onClose={() => setRates(false)} />}
     </>
   );

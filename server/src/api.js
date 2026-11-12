@@ -72,7 +72,7 @@ export function mountApi(app) {
     const mails = await visibleMails(u);
     res.json({
       mail: mails.filter((m) => { const s = u.mailState[m.id] || {}; return !s.read || (((m.coins || 0) > 0 || (m.sand || 0) > 0) && !s.claimed); }).length,
-      mission: missions.view(u).filter((m) => m.done && !m.claimed).length + missions.claimableExtra(u),
+      mission: (missions.dailyFromDefs() ? 0 : missions.view(u).filter((m) => m.done && !m.claimed).length) + missions.claimableExtra(u),
       friend: u.incoming.length,
     });
   }));
@@ -103,22 +103,23 @@ export function mountApi(app) {
     res.json({ ok: true });
   }));
 
+  const missionsPayload = (nu) => ({ missions: missions.dailyFromDefs() ? missions.extraView(nu, 'daily') : missions.view(nu), weekly: missions.extraView(nu, 'weekly'), special: missions.extraView(nu, 'special') });
   // ---- ミッション ----
   r.get('/missions', wrap(async (req, res) => {
     const u = await fresh(req);
-    res.json({ day: missions.dayKey(), missions: missions.view(u), weekly: missions.extraView(u, 'weekly'), special: missions.extraView(u, 'special'), weekKey: missions.weekKey() });
+    res.json({ day: missions.dayKey(), ...missionsPayload(u), weekKey: missions.weekKey() });
   }));
 
   // ウィークリー／スペシャルの受け取り
   r.post('/missions/x/:id/claim', wrap(async (req, res) => {
     const u = await fresh(req);
-    const item = [...missions.extraView(u, 'weekly'), ...missions.extraView(u, 'special')].find((m) => m.id === req.params.id);
+    const item = [...missions.extraView(u, 'daily'), ...missions.extraView(u, 'weekly'), ...missions.extraView(u, 'special')].find((m) => m.id === req.params.id);
     if (!item) return res.status(404).json({ error: 'ミッションが見つかりません（期間外の可能性があります）' });
     if (!item.done) return res.status(400).json({ error: 'まだ達成していません' });
     if (item.claimed) return res.status(400).json({ error: 'すでに受け取り済みです' });
     await store.updateUser(u.uid, { coins: u.coins + item.coins, sand: (u.sand || 0) + item.sand, mprog: missions.markClaimed(u, item.id) });
     const nu = await fresh(req);
-    res.json(withProfile(req, nu, { missions: missions.view(nu), weekly: missions.extraView(nu, 'weekly'), special: missions.extraView(nu, 'special') }));
+    res.json(withProfile(req, nu, missionsPayload(nu)));
   }));
 
   r.post('/missions/:key/claim', wrap(async (req, res) => {
@@ -130,7 +131,7 @@ export function mountApi(app) {
     const m = missions.current(u);
     m.claimed[item.key] = true;
     await store.updateUser(u.uid, { coins: u.coins + item.reward, missions: m });
-    { const nu = await fresh(req); res.json(withProfile(req, nu, { missions: missions.view(nu), weekly: missions.extraView(nu, 'weekly'), special: missions.extraView(nu, 'special') })); }
+    { const nu = await fresh(req); res.json(withProfile(req, nu, missionsPayload(nu))); }
   }));
 
   // ---- フレンド ----
@@ -344,6 +345,7 @@ export function mountApi(app) {
       gacha: gachaMeta(gc, Date.now()),
       coins: u.coins, sand: u.sand, cost: costOf(gc), rates: rates(g, pool), sandAmounts: g.sandAmounts, dupSand: g.dupSand,
       pickupIds: gc.pickupIds || [],
+      pity: { count: (await pityOf(u))[gc.id] || 0, max: PITY_MAX },
       // 上ほどレアなアイテム。ピックアップ → 新しい順。rate = 1回引いて、そのアイテムが出る確率(%)
       pool: pool.sort((a, b) => (RANK[b.rarity] - RANK[a.rarity]) || (Number(pk.has(b.id)) - Number(pk.has(a.id))) || ((b.createdAt || 0) - (a.createdAt || 0))).map((i) => {
         const same = pool.filter((x) => x.rarity === i.rarity);
@@ -354,6 +356,39 @@ export function mountApi(app) {
         return { ...base, rate, pickup: pk.has(i.id) };
       }),
     });
+  }));
+
+  // 天井: ガチャごとのゲージ（ユーザー文書の pity に保存。終了したガチャの分は取り除く）
+  const PITY_MAX = 200;
+  const pityOf = async (u) => {
+    const now = Date.now();
+    const live = new Set((await listGachas()).filter((g) => isActive(g, now)).map((g) => g.id));
+    return Object.fromEntries(Object.entries(u.pity || {}).filter(([id, n]) => live.has(id) && n > 0));
+  };
+  // 天井で選べるレジェンダリー（アイテム＋セット）
+  const legendPool = (pool) => pool.filter((i) => i.rarity === 'legendary');
+
+  r.post('/gacha/pity/claim', wrap(async (req, res) => {
+    const u = await fresh(req);
+    const gc = await getGacha(req.body.id);
+    if (!gc) return res.status(400).json({ error: 'このガチャは終了しました' });
+    const pity = await pityOf(u);
+    if ((pity[gc.id] || 0) < PITY_MAX) return res.status(400).json({ error: '天井ゲージがたまっていません' });
+    const it = legendPool(await poolFor(gc)).find((i) => i.id === req.body.itemId);
+    if (!it) return res.status(400).json({ error: 'このガチャのレジェンダリーを選んでください' });
+    const g = gachaRates(gc);
+    const owned = new Set(u.ownedItems);
+    let result; let sand = 0;
+    if (it.isSet) {
+      const items = it.items.map((x) => { const dup = owned.has(x.id); if (dup) sand += g.dupSand[rarityOf(x)]; owned.add(x.id); return { ...meta(x), duplicate: dup }; });
+      result = { kind: 'set', set: { id: it.id, name: it.name, rarity: 'legendary' }, items, duplicate: items.every((x) => x.duplicate), sand };
+    } else {
+      const dup = owned.has(it.id); sand = dup ? g.dupSand[it.rarity] : 0; owned.add(it.id);
+      result = { kind: 'item', item: meta(it), duplicate: dup, sand };
+    }
+    pity[gc.id] = 0; // Firestoreのmergeでは削除できないので0に戻す
+    await store.updateUser(u.uid, { sand: u.sand + sand, ownedItems: [...owned], pity });
+    res.json(withProfile(req, await fresh(req), { results: [result], sandGain: sand }));
   }));
 
   r.post('/gacha/pull', wrap(async (req, res) => {
@@ -400,7 +435,9 @@ export function mountApi(app) {
         results.push({ kind: 'sand', rarity: rar, sand });
       }
     }
-    await store.updateUser(u.uid, { coins: u.coins - total, sand: u.sand + sandGain, ownedItems: [...owned] });
+    const pity = await pityOf(u);
+    pity[gc.id] = Math.min(PITY_MAX, (pity[gc.id] || 0) + count);
+    await store.updateUser(u.uid, { coins: u.coins - total, sand: u.sand + sandGain, ownedItems: [...owned], pity });
     res.json(withProfile(req, await fresh(req), { results, sandGain }));
   }));
 

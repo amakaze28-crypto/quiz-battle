@@ -356,7 +356,7 @@ export function SettingsAdmin({ user }) {
 // datetime-local(端末の時刻)とミリ秒の相互変換
 const toLocal = (ms) => { if (!ms) return ''; const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
 const fromLocal = (v) => (v ? new Date(v).getTime() : 0);
-const TAB_LABEL = { weekly: 'ウィークリー', special: 'スペシャル' };
+const TAB_LABEL = { daily: 'デイリー', weekly: 'ウィークリー', special: 'スペシャル' };
 
 export function MissionsAdmin({ user }) {
   const { data, error, load } = useAdminLoad(user, '/missions', 'missions');
@@ -381,8 +381,8 @@ export function MissionsAdmin({ user }) {
   const status = (m) => {
     const now = Date.now();
     if (m.enabled === false) return ['無効', 'bg-slate-600'];
-    if (m.startAt && now < m.startAt) return ['開始前', 'bg-sky-700'];
-    if (m.endAt && now > m.endAt) return ['終了', 'bg-slate-600'];
+    if (m.tab === 'special' && m.startAt && now < m.startAt) return ['開始前', 'bg-sky-700'];
+    if (m.tab === 'special' && m.endAt && now > m.endAt) return ['終了', 'bg-slate-600'];
     return ['開催中', 'bg-emerald-600'];
   };
 
@@ -409,12 +409,12 @@ export function MissionsAdmin({ user }) {
           <label className="flex items-center gap-2">魔法の砂<input type="number" min={0} className={`${input} w-24`} value={f.sand} onChange={(e) => setF({ ...f, sand: e.target.value })} /></label>
           <label className="flex items-center gap-2">表示順<input type="number" className={`${input} w-20`} value={f.order} onChange={(e) => setF({ ...f, order: e.target.value })} /></label>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        {f.tab === 'special' && <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-2">開始<input type="datetime-local" className={`${input} !w-auto`} value={toLocal(f.startAt)} onChange={(e) => setF({ ...f, startAt: fromLocal(e.target.value) })} /></label>
           <label className="flex items-center gap-2">終了<input type="datetime-local" className={`${input} !w-auto`} value={toLocal(f.endAt)} onChange={(e) => setF({ ...f, endAt: fromLocal(e.target.value) })} /></label>
-        </div>
+        </div>}
         <p className="text-xs text-slate-400">
-          ウィークリーは毎週月曜0時（日本時間）に進捗がリセットされます。スペシャルは開始〜終了の期間中の累計で、リセットされません（開始・終了は空欄なら無期限）。
+          デイリーは毎日0時、ウィークリーは毎週月曜0時（日本時間）に進捗がリセットされ、登録したミッションが日付指定なしでずっと回ります。スペシャルは開始〜終了の期間中の累計で、リセットされません（開始・終了は空欄なら無期限）。
           タブごとに最大5件まで表示されます（表示順の小さい順）。「ログインする」は日数で数えます。
         </p>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.enabled !== false} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />有効にする</label>

@@ -67,7 +67,7 @@ const defaults = (uid, name, photoURL, email) => ({
   badges: [], streak: 0, bestStreak: 0, loginDays: 0, lastLoginDay: '', peakRating: 0, seasonGames: 0,
 });
 
-const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', cardId: 'none', bannerId: 'none', charId: 'char-m', badgeId: 'auto', ownedItems: ['default'], nameChanges: 0, nameSet: true, catStats: {}, wrongQs: [], friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {}, badges: [], streak: 0, bestStreak: 0, loginDays: 0, lastLoginDay: '', peakRating: 0, seasonGames: 0 };
+const FILL = { coins: 0, sand: 0, iconId: 'default', frameId: 'none', cardId: 'none', bannerId: 'none', charId: 'char-m', badgeId: 'auto', ownedItems: ['default'], nameChanges: 0, nameSet: true, catStats: {}, wrongQs: [], friends: [], incoming: [], outgoing: [], missions: null, mailState: {}, joinedAt: 0, lastLoginAt: 0, lastSeenAt: 0, statQ: 0, statCorrect: 0, statAns: 0, statTime: 0, mprog: {}, pity: {}, badges: [], streak: 0, bestStreak: 0, loginDays: 0, lastLoginDay: '', peakRating: 0, seasonGames: 0 };
 function norm(u) {
   const o = { ...u };
   for (const [k, v] of Object.entries(FILL)) {
