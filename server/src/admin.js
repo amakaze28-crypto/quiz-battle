@@ -1,3 +1,6 @@
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import * as store from './store.js';
 import { normalizeQuestion, reloadQuestions, fileName, catOf } from './questions.js';
@@ -301,6 +304,23 @@ export function mountAdmin(app, { io, matchmaker }) {
     if (type === 'card' && req.body.layout) { const L = cleanLayout(req.body.layout); if (L) await store.colSet('cardlayouts', id, L); }
     if (type === 'frame' && req.body.fit) { const F = cleanFit(req.body.fit); if (F) await store.colSet('framefits', id, F); }
     res.json({ id });
+  }));
+  // シンプルなアイコンリング16色・バナー16色を、コモンとしてガチャに追加する（同じ名前があれば追加しない）
+  r.post('/seed-simple-items', wrap(async (_req, res) => {
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed', 'simple');
+    const colors = JSON.parse(fs.readFileSync(path.join(dir, 'colors.json'), 'utf8'));
+    const have = new Set((await store.colList('items')).map((i) => i.name));
+    let added = 0;
+    for (const [jp, key] of colors) {
+      for (const [type, prefix, file] of [['frame', 'シンプルリング', `ring-${key}.webp`], ['card', 'シンプルバナー', `banner-${key}.webp`]]) {
+        const name = `${prefix} ${jp}`;
+        if (have.has(name)) continue;
+        const image = `data:image/webp;base64,${fs.readFileSync(path.join(dir, file)).toString('base64')}`;
+        await store.colAdd('items', { name, type, rarity: 'common', price: 0, image, onShop: false, inGacha: true, createdAt: Date.now() + added });
+        added++;
+      }
+    }
+    res.json({ added, total: colors.length * 2 });
   }));
   r.put('/items/:id', wrap(async (req, res) => {
     const patch = {};

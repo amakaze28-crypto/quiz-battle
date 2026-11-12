@@ -207,6 +207,11 @@ export function ItemsAdmin({ user }) {
 
   return (
     <div>
+      <div className={`${card} mb-5 max-w-xl`}>
+        <h2 className="font-bold mb-1">シンプルな素材をまとめて追加</h2>
+        <p className="text-xs text-slate-400 mb-2">アイコンリング16色・バナー16色を、コモンとしてガチャに入れます（同じ名前があれば追加しません）。</p>
+        <button onClick={async () => { if (!window.confirm('シンプルなリング16色・バナー16色を、コモンとしてガチャに追加しますか？')) return; try { const r = await adminApi(user, '/seed-simple-items', { method: 'POST', body: {} }); setMsg({ ok: true, text: r.added ? `${r.added}個を追加しました` : 'すでに追加済みです' }); load(); } catch (e) { setMsg({ ok: false, text: e.message }); } }} className={`${btn} bg-sky-700 font-bold`}>16色ずつ追加する</button>
+      </div>
       <h2 className="font-bold mb-2">アイテムを追加</h2>
       <div className={`${card} space-y-3 mb-5 max-w-xl`}>
         <div className="flex gap-2">

@@ -235,3 +235,6 @@ cd client && npm install && cp .env.example .env && npm run dev   # :5173
 
 ## アイコンリング（フレーム）の元画像
 `docs/icon-ring-template.png`（ガイド付き）と `docs/icon-ring-template-guides.png`（ガイドだけ・透過）。1024×1024。標準の位置調整では、アイコンは画像の中央・直径83.3%（853px）に表示されます。
+
+## シンプル素材（リング16色・バナー16色）
+管理画面 → アイテム →「16色ずつ追加する」で、コモンとしてガチャに追加されます（画像は `server/seed/simple/`）。同じ名前があれば追加しません。
