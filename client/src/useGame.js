@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { SERVER_URL } from './api';
+import { setSeasonNo } from './RankBadge';
 
 export function useGame(user) {
   const sockRef = useRef(null);
@@ -21,6 +22,7 @@ export function useGame(user) {
   const [offline, setOffline] = useState([]); // 対戦中に切断している人のuid
   const phaseRef = useRef('home');
 
+  const applyProfile = useCallback((p) => { setSeasonNo(p?.season?.number); setProfile(p); }, []);
   useEffect(() => { qRef.current = q; }, [q]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
@@ -39,7 +41,7 @@ export function useGame(user) {
     s.on('maintenance', ({ message }) => { setMaintMsg(message || ''); setConn('maintenance'); });
     s.on('banned', ({ reason }) => { setBanReason(reason || ''); setConn('banned'); });
     s.on('sping', (ack) => ack());
-    s.on('profile', setProfile);
+    s.on('profile', applyProfile);
     s.on('queue:status', setQueue);
     s.on('queue:error', setError);
     s.on('match:found', (m) => {
@@ -79,5 +81,5 @@ export function useGame(user) {
     setQ((v) => v && { ...v, myChoice: choice });
   }, []);
 
-  return { conn, maintMsg, banReason, setProfile, profile, phase, queue, match, offline, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
+  return { conn, maintMsg, banReason, setProfile: applyProfile, profile, phase, queue, match, offline, q, scores, avgTimes, secIntro, result, error, joinQueue, leaveQueue, goHome, answer };
 }

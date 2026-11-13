@@ -26,18 +26,18 @@ export default function RankDetail({ user, profile, onClose }) {
           {data && (
             <>
               <div className={`rounded-lg bg-black/25 p-1.5 flex items-center gap-2 ${cur === 'エンペラー' ? 'ring-1 ring-amber-400' : ''}`}>
-                <img src="/ranks/emperor.png" alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
+                <img src="/ranks/emperor.webp" alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
                 <div className="text-sm"><b>エンペラー</b><br /><span className="text-slate-200">マスターの MR 上位 {data.emperorCount} 人</span></div>
               </div>
               <div className={`rounded-lg bg-black/25 p-1.5 flex items-center gap-2 ${cur === 'マスター' ? 'ring-1 ring-amber-400' : ''}`}>
-                <img src="/ranks/master.png" alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
+                <img src="/ranks/master.webp" alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
                 <div className="text-sm"><b>マスター</b><br /><span className="text-slate-200">{data.masterStart.toLocaleString()} pt 以上（ここからは MR で競います）</span></div>
               </div>
             </>
           )}
           {groups.map((g) => (
             <div key={g.key} className="rounded-lg bg-black/25 p-1.5 flex items-center gap-2">
-              <img src={`/ranks/${g.key}.png`} alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
+              <img src={`/ranks/${g.key}.webp`} alt="" draggable={false} className="w-11 h-11 shrink-0 object-contain" />
               <div className="flex-1 grid gap-0.5">
                 {g.items.map((r) => (
                   <div key={r.label} className={`flex justify-between text-sm rounded px-2 py-0.5 ${r.label === cur ? 'bg-amber-400/25 ring-1 ring-amber-400 font-bold' : ''}`}>
