@@ -89,7 +89,8 @@ export function BadgesAdmin({ user }) {
   return (
     <div className="max-w-3xl space-y-3">
       {err && <p className="text-red-400">{err}</p>}
-      <div className="flex items-center gap-3"><h2 className="font-bold">バッジ</h2><button onClick={() => setEdit(blank)} className={`${btn} bg-sky-600`}>＋ バッジを追加</button></div>
+      <div className="flex items-center gap-3"><h2 className="font-bold">バッジ</h2><button onClick={() => setEdit(blank)} className={`${btn} bg-sky-600`}>＋ バッジを追加</button>
+        <button onClick={async () => { if (!window.confirm('同梱の活動バッジ19種（勝利数・マッチ数・連勝・ログイン日数）を一括登録します。登録済みのものは画像だけ更新します。')) return; try { const r = await adminApi(user, '/badges/seed', { method: 'POST' }); window.alert(`追加 ${r.added} 件・更新 ${r.updated} 件`); load(); } catch (e) { setErr(e.message); } }} className={`${btn} bg-slate-700`}>同梱バッジを一括登録</button></div>
       <p className="text-xs text-slate-400">条件を満たした人に自動で付与されます（ログイン時・対戦後・メニューを開いた時などに判定）。シーズン終了時の最終ランクバッジは自動で付与されるので、ここでは作りません。</p>
       {edit && !edit.id && <BadgeEditor user={user} b={edit} types={data.types} ranks={data.ranks} onSaved={() => { setEdit(null); load(); }} onCancel={() => setEdit(null)} />}
       <ul className="space-y-2">

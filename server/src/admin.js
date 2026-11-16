@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import * as store from './store.js';
 import { normalizeQuestion, reloadQuestions, fileName, catOf } from './questions.js';
 import { rankInfo, ratingValue } from './rank.js';
@@ -437,6 +440,21 @@ export function mountAdmin(app, { io, matchmaker }) {
       const id = await store.colAdd('badgedefs', { ...body, enabled: body.enabled !== false, createdAt: Date.now(), updatedAt: Date.now() });
       await badges.reloadBadgeDefs(); res.json({ id });
     } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  // 同梱の活動バッジ（勝利数・マッチ数・連勝・ログイン日数）の一括登録。登録済み（同名）は画像だけ更新
+  r.post('/badges/seed', wrap(async (_req, res) => {
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed', 'badges');
+    const man = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+    const have = new Map((await store.colList('badgedefs')).map((d) => [d.name, d]));
+    let added = 0; let updated = 0;
+    for (const m of man) {
+      const image = `data:image/webp;base64,${fs.readFileSync(path.join(dir, m.file)).toString('base64')}`;
+      const cur = have.get(m.name);
+      if (cur) { await store.colSet('badgedefs', cur.id, { image, updatedAt: Date.now() }); updated++; }
+      else { await store.colAdd('badgedefs', { name: m.name, desc: m.desc, cond: m.cond, image, enabled: true, createdAt: Date.now() + added, updatedAt: Date.now() }); added++; }
+    }
+    await badges.reloadBadgeDefs();
+    res.json({ added, updated });
   }));
   r.put('/badges/:id', wrap(async (req, res) => {
     if (!(await store.colGet('badgedefs', req.params.id))) return res.status(404).json({ error: 'バッジが見つかりません' });

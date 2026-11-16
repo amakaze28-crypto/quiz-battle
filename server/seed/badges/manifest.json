@@ -1,0 +1,173 @@
+[
+ {
+  "file": "wins-10.webp",
+  "name": "通算10勝",
+  "desc": "通算10勝を達成",
+  "cond": {
+   "type": "wins",
+   "n": 10
+  }
+ },
+ {
+  "file": "wins-100.webp",
+  "name": "通算100勝",
+  "desc": "通算100勝を達成",
+  "cond": {
+   "type": "wins",
+   "n": 100
+  }
+ },
+ {
+  "file": "wins-500.webp",
+  "name": "通算500勝",
+  "desc": "通算500勝を達成",
+  "cond": {
+   "type": "wins",
+   "n": 500
+  }
+ },
+ {
+  "file": "wins-1000.webp",
+  "name": "通算1,000勝",
+  "desc": "通算1,000勝を達成",
+  "cond": {
+   "type": "wins",
+   "n": 1000
+  }
+ },
+ {
+  "file": "wins-10000.webp",
+  "name": "通算10,000勝",
+  "desc": "通算10,000勝を達成",
+  "cond": {
+   "type": "wins",
+   "n": 10000
+  }
+ },
+ {
+  "file": "games-100.webp",
+  "name": "100マッチ",
+  "desc": "通算100マッチをプレイ",
+  "cond": {
+   "type": "games",
+   "n": 100
+  }
+ },
+ {
+  "file": "games-500.webp",
+  "name": "500マッチ",
+  "desc": "通算500マッチをプレイ",
+  "cond": {
+   "type": "games",
+   "n": 500
+  }
+ },
+ {
+  "file": "games-1000.webp",
+  "name": "1,000マッチ",
+  "desc": "通算1,000マッチをプレイ",
+  "cond": {
+   "type": "games",
+   "n": 1000
+  }
+ },
+ {
+  "file": "games-10000.webp",
+  "name": "10,000マッチ",
+  "desc": "通算10,000マッチをプレイ",
+  "cond": {
+   "type": "games",
+   "n": 10000
+  }
+ },
+ {
+  "file": "games-77777.webp",
+  "name": "77,777マッチ",
+  "desc": "通算77,777マッチをプレイ",
+  "cond": {
+   "type": "games",
+   "n": 77777
+  }
+ },
+ {
+  "file": "streak-3.webp",
+  "name": "3連勝",
+  "desc": "3連勝を達成",
+  "cond": {
+   "type": "streak",
+   "n": 3
+  }
+ },
+ {
+  "file": "streak-5.webp",
+  "name": "5連勝",
+  "desc": "5連勝を達成",
+  "cond": {
+   "type": "streak",
+   "n": 5
+  }
+ },
+ {
+  "file": "streak-10.webp",
+  "name": "10連勝",
+  "desc": "10連勝を達成",
+  "cond": {
+   "type": "streak",
+   "n": 10
+  }
+ },
+ {
+  "file": "streak-20.webp",
+  "name": "20連勝",
+  "desc": "20連勝を達成",
+  "cond": {
+   "type": "streak",
+   "n": 20
+  }
+ },
+ {
+  "file": "loginDays-10.webp",
+  "name": "ログイン10日",
+  "desc": "累計10日ログイン",
+  "cond": {
+   "type": "loginDays",
+   "n": 10
+  }
+ },
+ {
+  "file": "loginDays-30.webp",
+  "name": "ログイン30日",
+  "desc": "累計30日ログイン",
+  "cond": {
+   "type": "loginDays",
+   "n": 30
+  }
+ },
+ {
+  "file": "loginDays-100.webp",
+  "name": "ログイン100日",
+  "desc": "累計100日ログイン",
+  "cond": {
+   "type": "loginDays",
+   "n": 100
+  }
+ },
+ {
+  "file": "loginDays-365.webp",
+  "name": "ログイン365日",
+  "desc": "累計365日ログイン",
+  "cond": {
+   "type": "loginDays",
+   "n": 365
+  }
+ },
+ {
+  "file": "loginDays-1000.webp",
+  "name": "ログイン1,000日",
+  "desc": "累計1,000日ログイン",
+  "cond": {
+   "type": "loginDays",
+   "n": 1000
+  }
+ }
+]
